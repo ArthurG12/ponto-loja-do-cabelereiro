@@ -51,7 +51,7 @@ class CadesSignerPolicyTest {
         assertEquals(OID, parsed.oid());
         assertEquals("2.4", parsed.version());
         assertTrue(parsed.nextUpdate().isAfter(Instant.now()));
-        assertFalse(parsed.revoked());
+        assertNull(parsed.revocationDate());
     }
 
     @Test void rejectsWrongPolicyUri() throws Exception {
