@@ -61,6 +61,7 @@ Configure no ambiente privado do processo backend:
 - `SUPABASE_URL`: URL do projeto Supabase.
 - `SUPABASE_SERVICE_ROLE_KEY`: chave privilegiada, exclusivamente no servidor.
 - `REP_COLLECTOR_ID`: identificador estável do coletor/tablet.
+- `REP_COLLECTOR_TYPE`: código normativo do coletor: `01` mobile, `02` navegador, `03` desktop, `04` dispositivo eletrônico ou `05` outro. Para o tablet acessado pelo navegador, use `02`.
 - `REP_ALLOWED_ORIGIN` ou `REP_ALLOWED_ORIGINS`: origem(ens) exata(s) do frontend. Para várias origens, separe por vírgula.
 - `HOST=0.0.0.0` e `PORT`: endereço e porta de escuta do serviço.
 
@@ -68,7 +69,7 @@ O processo oferece `GET /healthz` para verificação de vida e `GET /readyz` par
 
 No build do frontend, configure `VITE_REP_API_URL` com a URL pública do backend. A chave privilegiada jamais pode ser colocada em `.env.production`, variável `VITE_*`, código do navegador ou repositório. Não compartilhe essa chave no chat.
 
-A função de registro valida o PIN no banco, controla a sequência prevista, aloca NSR por estabelecimento em transação, registra horário do PostgreSQL e encadeia os hashes SHA-256. A migration `202611260004_read_employee_time_marks.sql` adiciona a leitura do próprio dia por PIN exclusivamente via backend. A gravação original é feita em `time_marks`; a tabela legada `punches` permanece separada nesta fase. A migration `202611260003_assign_employee_establishment.sql` também vincula automaticamente novos funcionários ao único estabelecimento ativo; se houver mais de um, a inclusão falha de forma segura.
+A função de registro valida o PIN e o CPF do trabalhador no banco, preserva o snapshot do CPF, o código normativo do coletor e o indicador on-line/off-line, controla a sequência prevista e aloca NSR por estabelecimento em transação. O hash armazenado nesta etapa continua identificado como `legacy-json-v1`; ele ainda não é o hash normativo SHA-256 do registro 7 do AFD 004. A migration `202611260004_read_employee_time_marks.sql` adiciona a leitura do próprio dia por PIN exclusivamente via backend. A gravação original é feita em `time_marks`; a tabela legada `punches` permanece separada nesta fase. A migration `202611260003_assign_employee_establishment.sql` também vincula automaticamente novos funcionários ao único estabelecimento ativo; se houver mais de um, a inclusão falha de forma segura.
 
 
 **Leitura integrada nesta etapa:** a tela de conferência consulta também as marcações REP-P por um endpoint backend que valida novamente o PIN. Os relatórios administrativos combinam `punches` legados e `time_marks` (com leitura protegida por RLS para administradores). A tela de ajustes identifica os registros REP-P pelo NSR e não oferece alteração/anulação direta, pois as marcações originais são imutáveis. O fluxo de tratamento formal, com eventos separados e geração de AEJ, ainda não foi implementado.
