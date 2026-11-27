@@ -59,7 +59,7 @@ A porta não deve ser publicada na Internet. Use rede privada e TLS/mTLS na fron
 - CI Maven/JDK 21 cobre compilação, pacote, controles de token, parsing ASN.1 da LPA/PA, limites de vigência de 90 dias, rejeição de JSON ambíguo, algoritmo AD-RB 2.4 (RSA mínimo 2048; EC rejeitado) e geração/verificação CMS detached com chave RSA efêmera de teste.
 - Vetores sintéticos não demonstram que os artefatos oficiais atuais, a cadeia ICP-Brasil ou o certificado real do desenvolvedor serão aceitos.
 - Ainda são necessários testes de integração com LPA CAdES oficial assinada pelo ITI, trust anchors oficiais pinados, respostas OCSP/CRL reais, certificado ICP-Brasil válido do desenvolvedor e verificação por uma segunda implementação independente.
-- A validação da revogação depende de conectividade aos respondedores OCSP/CRL; indisponibilidade ou resultado inconclusivo bloqueia.
+- A validação da revogação depende de conectividade aos respondedores OCSP/CRL; indisponibilidade ou resultado inconclusivo bloqueia. O serviço configura timeouts de conexão/leitura de 10 segundos para OCSP, LCR e recuperação de certificados, sem opção `SOFT_FAIL`.
 - Não foi implementado HSM/PKCS#11. O PKCS#12 externo é uma etapa de integração; para produção, preferir chave não exportável em HSM/token e revisar a proteção do processo/segredos.
 - O servidor ainda não possui TLS/mTLS próprio, rotação automática de segredos, auditoria externa imutável, timestamping ou monitoramento operacional.
 - A API Node cliente ainda exige integração/testes ponta a ponta com este serviço; a rota pública de AFD permanece bloqueada até revisão independente do resultado e da cadeia completa.
