@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { buildAfdV004, candidateType7Hash } from './afd-v004.js';
 
 const supabaseUrl = process.env.SUPABASE_URL || '';
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -181,4 +182,178 @@ export async function recordRepServiceEvent(eventCode) {
     console.error('Falha de conexão ao registrar evento de disponibilidade REP-P.');
     return { ok: false, error: 'Não foi possível registrar o evento de disponibilidade.' };
   }
+}
+
+
+const AFD_V004_HASH_VERSION = 'afd-v004-fixed-concat-candidate-v1';
+const authAnonKey = process.env.SUPABASE_ANON_KEY || '';
+
+export async function authenticateRepAdmin(accessToken) {
+  if (!configured || !supabase || !authAnonKey || !accessToken) {
+    return { ok: false, unavailable: !configured || !supabase || !authAnonKey };
+  }
+  try {
+    const authClient = createClient(supabaseUrl, authAnonKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+    const { data: { user }, error: authError } = await authClient.auth.getUser(accessToken);
+    if (authError || !user?.id) return { ok: false };
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (profileError) {
+      console.error('Falha ao verificar perfil administrativo REP-P:', profileError.code || 'sem código');
+      return { ok: false, unavailable: true };
+    }
+    return profile?.role === 'admin'
+      ? { ok: true, userId: user.id }
+      : { ok: false };
+  } catch {
+    return { ok: false, unavailable: true };
+  }
+}
+
+function validIsoDate(value) {
+  if (typeof value !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+function localMidnightUtc(dateText, timezone) {
+  const [year, month, day] = dateText.split('-').map(Number);
+  const target = Date.UTC(year, month - 1, day, 0, 0, 0);
+  let guess = target;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+    }).formatToParts(new Date(guess));
+    const value = (type) => Number(parts.find((part) => part.type === type)?.value);
+    const represented = Date.UTC(value('year'), value('month') - 1, value('day'), value('hour'), value('minute'), value('second'));
+    const correction = target - represented;
+    guess += correction;
+    if (correction === 0) break;
+  }
+  return new Date(guess);
+}
+
+export async function prepareRepAfdExport({ startDate, endDate }) {
+  if (!configured || !supabase) throw new Error('Serviço REP-P não configurado.');
+  if (!validIsoDate(startDate) || !validIsoDate(endDate) || startDate > endDate) {
+    const error = new Error('Período AFD inválido.');
+    error.statusCode = 400;
+    throw error;
+  }
+  const firstDay = new Date(`${startDate}T00:00:00.000Z`);
+  const lastDay = new Date(`${endDate}T00:00:00.000Z`);
+  const dayCount = Math.round((lastDay - firstDay) / 86400000) + 1;
+  if (dayCount > 31) {
+    const error = new Error('O período máximo de exportação é de 31 dias.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const { data: establishment, error: establishmentError } = await supabase
+    .from('establishments')
+    .select('id,timezone,active,employer_id_type,employer_document,cno_caepf,legal_name,service_location')
+    .eq('id', establishmentId)
+    .maybeSingle();
+  if (establishmentError || !establishment?.active) {
+    throw new Error('Estabelecimento REP-P não encontrado ou inativo.');
+  }
+
+  let timezone = establishment.timezone;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(new Date());
+  } catch {
+    throw new Error('Fuso horário do estabelecimento inválido.');
+  }
+  const rangeStart = localMidnightUtc(startDate, timezone);
+  const nextDay = new Date(lastDay.getTime() + 86400000).toISOString().slice(0, 10);
+  const rangeEnd = localMidnightUtc(nextDay, timezone);
+
+  const { data: allRecords, error: ledgerError } = await supabase
+    .from('rep_ledger')
+    .select('establishment_id,nsr,record_type,source_table,source_id,occurred_at,record_payload,hash_version,record_hash')
+    .eq('establishment_id', establishmentId)
+    .order('nsr', { ascending: true })
+    .limit(100001);
+  if (ledgerError) {
+    console.error('Falha ao consultar livro AFD:', ledgerError.code || 'sem código');
+    throw new Error('Não foi possível consultar o livro AFD.');
+  }
+  if ((allRecords || []).length > 100000) {
+    throw new Error('Histórico excede o limite seguro de validação. Exportação bloqueada.');
+  }
+
+  let previousType7Hash = '';
+  const type7HashesByNsr = new Map();
+  for (const record of allRecords || []) {
+    if (String(record.record_type) !== '7') continue;
+    if (record.hash_version !== AFD_V004_HASH_VERSION) {
+      throw new Error('Histórico contém hash legado ou não validado; exportação AFD bloqueada.');
+    }
+    const payload = record.record_payload || {};
+    const expected = candidateType7Hash({
+      nsr: record.nsr,
+      markedAt: payload.recorded_at,
+      cpf: payload.employee_cpf_snapshot,
+      recordedAt: payload.recorded_on || payload.created_at,
+      collectorType: payload.collector_type,
+      isOffline: payload.is_offline,
+      previousHash: previousType7Hash || null,
+      timezone: payload.timezone || timezone,
+    });
+    if (record.record_hash !== expected) {
+      throw new Error('Cadeia SHA-256 do histórico diverge; exportação AFD bloqueada.');
+    }
+    previousType7Hash = record.record_hash;
+    type7HashesByNsr.set(Number(record.nsr), record.record_hash);
+  }
+
+  const selected = (allRecords || []).filter((record) => {
+    const timestamp = new Date(record.occurred_at).getTime();
+    return Number.isFinite(timestamp) && timestamp >= rangeStart.getTime() && timestamp < rangeEnd.getTime();
+  });
+  const firstIncludedType7 = selected
+    .filter((record) => String(record.record_type) === '7')
+    .reduce((minimum, record) => Math.min(minimum, Number(record.nsr)), Infinity);
+  let initialPreviousType7Hash = null;
+  if (Number.isFinite(firstIncludedType7)) {
+    const previous = [...type7HashesByNsr.keys()].filter((nsr) => nsr < firstIncludedType7).sort((a, b) => b - a)[0];
+    initialPreviousType7Hash = previous == null ? null : type7HashesByNsr.get(previous);
+  }
+
+  const inpi = process.env.REP_INPI_REGISTRATION || '';
+  const developerType = process.env.REP_DEVELOPER_ID_TYPE || '';
+  const developerDocument = process.env.REP_DEVELOPER_DOCUMENT || '';
+  const header = {
+    employer_id_type: establishment.employer_id_type,
+    employer_document: establishment.employer_document,
+    cno_caepf: establishment.cno_caepf,
+    legal_name: establishment.legal_name,
+    inpi_registration: inpi,
+    start_date: startDate,
+    end_date: endDate,
+    generated_at: new Date().toISOString(),
+    timezone,
+    developer_id_type: developerType,
+    developer_document: developerDocument,
+  };
+
+  const output = buildAfdV004({
+    header,
+    records: selected,
+    initialPreviousType7Hash,
+  });
+  return {
+    buffer: output,
+    recordCount: selected.length,
+    startDate,
+    endDate,
+    timezone,
+    establishmentId,
+  };
 }
