@@ -26,6 +26,7 @@ jobs:
         run: |
           node --check server/index.js
           node --check server/rep-p.js
+          node --check server/rep-p-server.js
           node --check scripts/dev.mjs
       - name: Build frontend
         run: npm run build
