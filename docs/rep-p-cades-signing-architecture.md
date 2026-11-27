@@ -12,11 +12,13 @@ O serviço Java 21 está implementado na pasta `signer-java/`, com geração CMS
 - Política selecionada: **AD-RB baseada em CAdES, versão 2.4**, OID `2.16.76.1.7.1.1.2.4`.
 - O DOC-ICP-15.03 v9.1, Anexo 2, seção 1, define para AD-RB CAdES 2.4 os atributos assinados `contentType`, `messageDigest`, `signingCertificateV2` e `sigPolicyId`.
 - Para AD-RB CAdES 2.4, o conjunto de raízes confiáveis é **ICP-Brasil v5 e v12** (não v2/v5). A versão 2.4 também exige revogação por LCR ou OCSP para certificados finais e de ACs.
-- A política 2.4 permite RSA/SHA-256, RSA/SHA-512, ECDSA/SHA-256, ECDSA/SHA-512, Ed25519 e Ed448. O tamanho mínimo é 2048 bits para RSA, 256 bits para ECDSA/Ed25519 e 456 bits para Ed448.
-- A implementação atual suporta o subconjunto RSA/SHA-256 (mínimo 2048 bits) e ECDSA/SHA-256 (mínimo 256 bits). SHA-512, Ed25519 e Ed448 ainda não foram implementados e são rejeitados; isso é uma limitação explícita de suporte, não uma proibição da política.
+- A IN ITI nº 33/2025 lista para CAdES 2.4 RSA/SHA-256, RSA/SHA-512, ECDSA/SHA-256, ECDSA/SHA-512, Ed25519, Ed25519ph, Ed448 e Ed448ph. O tamanho mínimo é 2048 bits para RSA, 256 bits para ECDSA/Ed25519 e 456 bits para Ed448. Para CMS, o RFC 8419 especifica PureEdDSA (não HashEdDSA/variantes `ph`); Ed25519 usa SHA-512 e Ed448 usa SHAKE256 com saída de 512 bits.
+- A implementação atual suporta somente RSA/SHA-256 (mínimo 2048 bits) e ECDSA/SHA-256 (mínimo 256 bits). RSA/SHA-512, ECDSA/SHA-512, Ed25519 e Ed448 ainda não foram implementados e são rejeitados; isso é uma limitação explícita de suporte, não uma proibição da política. As variantes `ph` também não são implementadas e não devem ser usadas em CMS conforme RFC 8419.
 - A versão 2.4 da PA tem período de assinatura de 12/06/2025 a 22/10/2037. A LPA CAdES publicada pelo ITI tem ciclo próprio e `nextUpdate`; na consulta de 27/11/2026, o ciclo divulgado era 03/10/2026 a 01/01/2027. A LPA deve ser atualizada antes do seu `nextUpdate`, sem fixar datas no código.
 
 Fontes:
+- [IN ITI nº 33/2025 — alterações do DOC-ICP-15.03 e algoritmos da PA 2.4](https://repositorio.iti.gov.br/instrucoes-normativas/IN2025_33_DOC_ICP_15.03.htm)
+- [RFC 8419 — EdDSA em CMS](https://www.rfc-editor.org/rfc/rfc8419)
 - [DOC-ICP-15.03 v9.1, Anexo 2 — AD-RB CAdES](https://www.gov.br/iti/pt-br/assuntos/legislacao/documentos-principais/v9.1_IN2021_03_DOCICP15.03_compilada.pdf)
 - [LPA CAdES e situação das políticas](https://www.gov.br/iti/pt-br/assuntos/repositorio/lista-de-politicas-de-assinatura)
 - [Políticas AD-RB do ITI — tabela CAdES inclui a PA 2.4 e seu DER](https://www.gov.br/iti/pt-br/assuntos/repositorio/assinatura-digital-com-referencia-basica-ad-rb)
