@@ -372,6 +372,15 @@ final class CadesSigner {
             if (!(cert instanceof X509Certificate x509) || x509.getBasicConstraints() < 0) {
                 throw new SecurityException("Trust-anchor bundle contains a non-CA certificate");
             }
+            x509.checkValidity();
+            if (!x509.getSubjectX500Principal().equals(x509.getIssuerX500Principal())) {
+                throw new SecurityException("Only self-issued ICP-Brasil root certificates may be trust anchors");
+            }
+            x509.verify(x509.getPublicKey());
+            boolean[] usage = x509.getKeyUsage();
+            if (usage != null && (usage.length <= 5 || !usage[5])) {
+                throw new SecurityException("Trust anchor lacks keyCertSign usage");
+            }
             anchors.add(new TrustAnchor(x509, null));
         }
         return Set.copyOf(anchors);
