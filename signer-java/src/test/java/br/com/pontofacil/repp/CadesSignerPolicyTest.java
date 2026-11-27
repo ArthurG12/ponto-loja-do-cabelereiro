@@ -16,13 +16,27 @@ class CadesSignerPolicyTest {
     private static final String URI = "https://example.invalid/PA_AD_RB_CAdES_2_4.der";
 
     private byte[][] fixture() throws Exception {
-        byte[] internalHash = MessageDigest.getInstance("SHA-256").digest("internal-policy-hash".getBytes());
-        ASN1EncodableVector paHashFields = new ASN1EncodableVector();
-        paHashFields.add(new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256));
-        paHashFields.add(new DEROctetString(internalHash));
+        return fixture(false);
+    }
+
+    private byte[][] fixture(boolean invalidEmbeddedHash) throws Exception {
+        AlgorithmIdentifier hashAlgorithm = new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256);
+        ASN1EncodableVector policyInfoFields = new ASN1EncodableVector();
+        policyInfoFields.add(new ASN1ObjectIdentifier(OID));
+        policyInfoFields.add(new DERIA5String(URI));
+        ASN1Sequence policyInfo = new DERSequence(policyInfoFields);
+
+        ASN1EncodableVector hashInputFields = new ASN1EncodableVector();
+        hashInputFields.add(hashAlgorithm);
+        hashInputFields.add(policyInfo);
+        byte[] internalHash = MessageDigest.getInstance("SHA-256")
+                .digest(new DERSequence(hashInputFields).getEncoded("DER"));
+        byte[] embeddedHash = invalidEmbeddedHash ? new byte[32] : internalHash;
+
         ASN1EncodableVector paFields = new ASN1EncodableVector();
-        paFields.add(new DERSequence());
-        paFields.add(new DERSequence(paHashFields));
+        paFields.add(hashAlgorithm);
+        paFields.add(policyInfo);
+        paFields.add(new DEROctetString(embeddedHash));
         byte[] policyDer = new DERSequence(paFields).getEncoded("DER");
         byte[] publishedHash = MessageDigest.getInstance("SHA-256").digest(policyDer);
 
@@ -44,7 +58,7 @@ class CadesSignerPolicyTest {
         root.add(new ASN1Integer(0));
         root.add(new DERSequence(infos));
         root.add(new ASN1GeneralizedTime(Date.from(now.plus(Duration.ofDays(30)))));
-        return new byte[][] { new DERSequence(paFields).getEncoded("DER"), new DERSequence(root).getEncoded("DER"), internalHash };
+        return new byte[][] { policyDer, new DERSequence(root).getEncoded("DER"), internalHash };
     }
 
     @Test void acceptsPolicyOnlyWhenLpaUriOidAndBothHashesMatch() throws Exception {
@@ -56,6 +70,13 @@ class CadesSignerPolicyTest {
         assertTrue(parsed.nextUpdate().isAfter(Instant.now()));
         assertNull(parsed.revocationDate());
         assertTrue(CadesSigner.isPolicyCurrent(parsed, Instant.now()));
+        assertArrayEquals(fixture[2], parsed.attributeHash());
+    }
+
+    @Test void rejectsPolicyWithIncorrectEmbeddedSignPolicyHash() throws Exception {
+        byte[][] fixture = fixture(true);
+        assertThrows(SecurityException.class, () -> CadesSigner.parsePolicy(fixture[1], fixture[0],
+                OID, URI, "2.4", HexFormat.of().formatHex(fixture[2])));
     }
 
     @Test void rejectsWrongPolicyUri() throws Exception {
