@@ -60,7 +60,7 @@ final class CadesSigner {
     private final String environment;
     private final String policyVersion;
 
-    private CadesSigner(PrivateKey privateKey, X509Certificate signerCertificate,
+    CadesSigner(PrivateKey privateKey, X509Certificate signerCertificate,
             List<X509Certificate> signerChain, Set<TrustAnchor> trustAnchors,
             String signatureAlgorithm, Policy policy, String fingerprint,
             String developerCpf, String environment, String policyVersion) {
