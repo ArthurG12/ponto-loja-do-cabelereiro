@@ -117,7 +117,7 @@ final class CadesSigner {
         verifyDetachedCms(lpa, lpaSignature, anchors, true);
         Policy policy = parsePolicy(lpa, policyDer, policyOid, policyUri, policyVersion, policyAttributeHash);
         if (!policy.nextUpdate.isAfter(Instant.now())
-                || !policy.notBefore.isBefore(Instant.now().plusSeconds(1))
+                || policy.notBefore.isAfter(Instant.now())
                 || !policy.notAfter.isAfter(Instant.now())
                 || policy.revoked) {
             throw new SecurityException("CAdES policy is expired, not yet valid, revoked, or LPA is stale");
@@ -170,7 +170,7 @@ final class CadesSigner {
 
     boolean ready() {
         Instant now = Instant.now();
-        if (policy.revoked || !policy.notBefore.isBefore(now.plusSeconds(1))
+        if (policy.revoked || policy.notBefore.isAfter(now)
                 || !policy.notAfter.isAfter(now) || !policy.nextUpdate.isAfter(now)) return false;
         try {
             signerCertificate.checkValidity();
