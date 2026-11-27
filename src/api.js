@@ -18,7 +18,7 @@ function configured(url, key) {
 }
 
 export const remote = configured(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
-const repApiUrl = (import.meta.env.VITE_REP_API_URL || '').replace(/\\/+$/, '');
+const repApiUrl = (import.meta.env.VITE_REP_API_URL || '').replace(/\/+$/, '');
 export const supabase = remote ? createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY) : null;
 
 function messageFrom(error, fallback) {
