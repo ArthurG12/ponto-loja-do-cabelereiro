@@ -9,7 +9,8 @@
     "preview": "vite preview --host 0.0.0.0",
     "start:rep-p": "node server/rep-p-server.js",
     "check:rep-p": "node --check server/rep-p-server.js && node --check server/rep-p.js",
-    "test:rep-p": "node --test server/rep-p-server.test.js"
+    "test:rep-p": "node --test server/rep-p-server.test.js",
+    "test:afd": "node --test server/afd-v004.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",
