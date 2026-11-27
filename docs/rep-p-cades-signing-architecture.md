@@ -1,108 +1,91 @@
 # Arquitetura de assinatura CAdES ICP-Brasil do AFD REP-P
 
-## Estado
+## Estado real da implementação
 
-Documento de arquitetura. **Não implementa assinatura, não habilita exportação e não substitui validação jurídica/técnica.** O endpoint AFD deve continuar bloqueando a entrega até que todas as verificações abaixo estejam implementadas e aprovadas.
+O serviço Java 21 está implementado na pasta `signer-java/`, com geração CMS/CAdES detached, validação da LPA, cadeia PKIX e revogação, API HTTP privada, imagem Docker não-root e testes automatizados. O CI também verifica a matemática CMS gerada com OpenSSL.
 
-## Base normativa e biblioteca
+**Isso ainda não habilita a exportação AFD nem comprova conformidade REP-P.** Os artefatos oficiais da LPA/PA, as raízes ICP-Brasil v5/v12 aprovadas e o certificado real do desenvolvedor ainda precisam ser provisionados e ensaiados. A integração ponta a ponta com a rota Node/AFD permanece bloqueada em HTTP 503. Não há assinatura real de produção neste repositório.
 
-- O MTE exige assinatura CAdES destacada ICP-Brasil do AFD, entregue como arquivo .p7s separado do AFD.
-- O ITI publica a Lista de Políticas de Assinatura (LPA) CAdES vigente. Na consulta de 27/11/2026, o ciclo publicado é de 03/10/2026 a 01/01/2027. O serviço deve consultar a LPA oficial e validar sua assinatura, integridade, vigência e política aplicável em cada operação; não fixar indefinidamente um OID ou DER embutido no código.
-- A política AD-RB CAdES 2.4 está publicada como vigente pelo ITI e seu OID é `2.16.76.1.7.1.1.2.4`. A versão deve ser confirmada contra a LPA vigente antes de cada assinatura; o serviço não aceita política enviada pelo cliente nem mantém OID/DER desatualizado.
-- O SERPRO Demoiselle Signer é a opção inicial de implementação: versão 4.6.2, módulos policy-impl-cades, chain-icp-brasil e policy-engine. O projeto documenta geração e validação CAdES, cadeias ICP-Brasil e carregamento de LPA.
-- A interface `PKCS7Signer` da biblioteca expõe `doDetachedSign(content, previewSigned)`, que produz assinatura destacada sem incorporar o conteúdo. `CAdESChecker.checkDetachedSignature(content, signature)` permite verificar o CMS contra os bytes originais; `SignatureInformations` expõe invalidSignature, validatorErrors e validatorWarnings. A implementação deve rejeitar qualquer erro, aviso ou resultado inconclusivo.
-- **Limite identificado na revisão do código 4.6.2:** `PolicyValidator` carrega e interpreta a LPA, verifica `nextUpdate`, período e revogação da política, mas não demonstra por si só a verificação criptográfica da assinatura CMS da própria LPA nem a conferência independente do hash do DER contra a LPA assinada. Isso precisa ser feito por um verificador separado antes de confiar nos dados da LPA.
+## Base normativa
 
-## Arquitetura proposta
+- O MTE exige assinatura CAdES destacada ICP-Brasil do AFD, entregue como arquivo `.p7s` separado do AFD.
+- Política selecionada: **AD-RB baseada em CAdES, versão 2.4**, OID `2.16.76.1.7.1.1.2.4`.
+- O DOC-ICP-15.03 v9.1, Anexo 2, seção 1, define para AD-RB CAdES 2.4 os atributos assinados `contentType`, `messageDigest`, `signingCertificateV2` e `sigPolicyId`.
+- Para AD-RB CAdES 2.4, o conjunto de raízes confiáveis é **ICP-Brasil v5 e v12** (não v2/v5). A versão 2.4 também exige revogação por LCR ou OCSP para certificados finais e de ACs.
+- A política 2.4 permite RSA/SHA-256, RSA/SHA-512, ECDSA/SHA-256, ECDSA/SHA-512, Ed25519 e Ed448. O tamanho mínimo é 2048 bits para RSA, 256 bits para ECDSA/Ed25519 e 456 bits para Ed448.
+- A implementação atual suporta o subconjunto RSA/SHA-256 (mínimo 2048 bits) e ECDSA/SHA-256 (mínimo 256 bits). SHA-512, Ed25519 e Ed448 ainda não foram implementados e são rejeitados; isso é uma limitação explícita de suporte, não uma proibição da política.
+- A versão 2.4 da PA tem período de assinatura de 12/06/2025 a 22/10/2037. A LPA CAdES publicada pelo ITI tem ciclo próprio e `nextUpdate`; na consulta de 27/11/2026, o ciclo divulgado era 03/10/2026 a 01/01/2027. A LPA deve ser atualizada antes do seu `nextUpdate`, sem fixar datas no código.
 
-1. **API REP-P (Node)** autentica o administrador, limita o período, consulta o ledger e gera os bytes AFD v004.
-2. Antes de assinar, a API valida o AFD localmente: ISO-8859-1, CRLF, larguras, CRC, trailer, sequência NSR e cadeia de hashes. Enquanto a regra de hash tipo 7 permanecer candidata, a exportação legal continua bloqueada.
-3. A API envia os bytes exatos do AFD a um **serviço privado de assinatura Java**, em rede privada, com autenticação serviço-a-serviço (mTLS preferencialmente). O navegador nunca acessa o assinador.
-4. O serviço Java baixa a LPA CAdES e o respectivo arquivo de assinatura do repositório oficial do ITI, valida a assinatura da LPA contra uma cadeia confiável do ITI, confere o hash do DER e o `nextUpdate`, e confirma que a política AD-RB CAdES 2.4/OID `2.16.76.1.7.1.1.2.4` está vigente e não revogada. Só então usa Demoiselle Signer 4.6.2 para criar CAdES detached. Não aceitar OID/política arbitrária enviada pelo cliente.
-5. O assinador verifica o certificado e a cadeia ICP-Brasil em produção, validade temporal, revogação/CRL ou OCSP conforme a política e identidade do titular. A identidade do certificado deve corresponder aos dados oficiais do desenvolvedor/fabricante configurados no REP-P.
-6. A API recebe o CMS/PKCS#7 DER, valida a assinatura contra os mesmos bytes AFD e confirma que é detached, que o conteúdo assinado corresponde byte a byte ao AFD, que a cadeia e política são aceitas e que o certificado é o esperado.
-7. Somente após todas as verificações a API entrega o AFD e o .p7s juntos, com nomes coerentes e sem cache. Qualquer erro, indisponibilidade, política vencida ou certificado não validado resulta em bloqueio, nunca em fallback para arquivo sem assinatura.
+Fontes:
+- [DOC-ICP-15.03 v9.1, Anexo 2 — AD-RB CAdES](https://www.gov.br/iti/pt-br/assuntos/legislacao/documentos-principais/v9.1_IN2021_03_DOCICP15.03_compilada.pdf)
+- [LPA CAdES e situação das políticas](https://www.gov.br/iti/pt-br/assuntos/repositorio/lista-de-politicas-de-assinatura)
+- [Repositório de certificados ICP-Brasil](https://www.gov.br/iti/pt-br/assuntos/repositorio/certificados-das-acs-da-icp-brasil-arquivo-unico-compactado)
 
-## Proteção da chave
+## Implementação atual
 
-- A chave privada e o PIN/senha do certificado não entram no Git, frontend, Supabase, logs, mensagens ou variáveis VITE_*.
-- Preferir chave não exportável em HSM ou token/serviço criptográfico com interface PKCS#11. Se o certificado disponível exigir arquivo A1/PKCS#12, ele deve permanecer em secret store/volume criptografado e restrito ao processo de assinatura, com acesso operacional mínimo, rotação e auditoria.
-- Não enviar certificado, arquivo PFX/P12, PIN ou senha pelo chat.
-- Desabilitar cadeias de homologação no ambiente de produção; a documentação do Demoiselle 4.6.2 alerta que cadeias de homologação podem aceitar certificados de teste.
-- O serviço não deve registrar bytes do AFD, assinatura completa, senha, PIN ou chave em logs. Registrar apenas identificador de operação, hash do conteúdo, fingerprint do certificado, política/versionamento e resultado.
+### Fluxo
 
-## Contrato interno sugerido
+1. O backend Node autentica o administrador, limita o período, consulta o ledger e prepara os bytes exatos do AFD v004.
+2. O cliente Node `server/cades-signer-client.js` envia o conteúdo em Base64 por HTTPS, com Bearer de serviço, SHA-256 e UUID de operação. O timeout padrão é 150 segundos.
+3. Um proxy TLS privado (modelo em `signer-java/nginx.conf.example`) termina HTTPS e encaminha apenas `/v1/sign-detached` para o serviço Java na rede privada. O exemplo usa TLS e Bearer; **mTLS de cliente ainda não está configurado**.
+4. O serviço Java recebe LPA DER, assinatura PKCS#7 da LPA, PA DER, bundle de raízes e PKCS#12 como arquivos externos provisionados em runtime. Ele não baixa artefatos automaticamente nem confia em certificados recebidos junto com a LPA.
+5. Na inicialização, compara os hashes independentes do bundle e dos arquivos LPA, exige exatamente duas raízes autoassinadas ICP-Brasil v5/v12, valida a assinatura CMS detached da LPA, constrói a cadeia até as raízes pinadas e confere validade/revogação.
+6. Interpreta a LPA e a PA em ASN.1, confere OID, URI, período, hash DER da PA, hash interno usado no `sigPolicyId`, revogação e `nextUpdate`. Rejeita LPA vencida ou com `nextUpdate` superior a 90 dias.
+7. Carrega um PKCS#12 com exatamente uma chave de assinatura, confere fingerprint SHA-256, CPF no Subject, certificado final não-CA, KeyUsage `digitalSignature` e prova criptográfica de correspondência entre chave privada e certificado.
+8. Gera CMS detached com `contentType`, `messageDigest`, `signingCertificateV2` (SHA-256 default) e `sigPolicyId`; reabre e verifica a assinatura antes de devolver o `.p7s`.
+9. Cada readiness e cada assinatura revalidam LPA, cadeia e revogação. Falha, indisponibilidade ou resultado inconclusivo bloqueia. A API HTTP usa JSON estrito, limite de corpo compatível com AFD de até 25 MB, fila limitada e uma assinatura pesada simultânea.
+10. A rota AFD ainda **não chama** o cliente CAdES para liberar arquivos. Ela permanece bloqueada até verificação independente e integração completa.
 
-Solicitação privada:
-- content: bytes do AFD em Base64;
-- contentSha256: SHA-256 calculado pela API sobre os bytes exatos;
-- operationId: UUID gerado no backend;
-- nenhum campo de certificado, OID ou política escolhido pelo usuário.
+### Arquivos
 
-Resposta privada:
-- signature: bytes DER do CMS detached em Base64;
-- contentSha256: digest dos bytes efetivamente assinados;
-- signerCertificateFingerprint: fingerprint do certificado utilizado;
-- `policyIdentifier`, `policyVersion`, período de validade da política, `lpaNextUpdate` e SHA-256 do DER da LPA;
-- validation: resultado estruturado das verificações de assinatura, atributos CAdES, cadeia ICP-Brasil, revogação, identidade do desenvolvedor, assinatura/integridade/atualidade da LPA e ausência de revogação da política.
+- `signer-java/src/main/java/br/com/pontofacil/repp/CadesSigner.java`: bootstrap, validação e geração CMS/CAdES.
+- `signer-java/src/main/java/br/com/pontofacil/repp/SignerServer.java`: HTTP privado, Bearer, parsing estrito e backpressure.
+- `signer-java/src/main/java/br/com/pontofacil/repp/CadesSigningService.java`: contrato interno para testes de integração HTTP.
+- `signer-java/Dockerfile`: imagem multi-stage, JAR sombreado e usuário não-root.
+- `signer-java/nginx.conf.example`: terminação TLS privada para o cliente Node.
+- `server/cades-signer-client.js`: cliente HTTPS Node; valida contrato e atestados, mas não implementa CMS.
 
-A API deve rejeitar resposta sem todos os campos, OID diferente do autorizado, versão diferente da política configurada, digest divergente, CMS malformado, assinatura attached, certificado diferente do esperado, LPA sem assinatura/integridade/atualidade comprovadas ou validação não conclusiva. O contrato não deve ser exposto publicamente.
+### Provisionamento externo
 
-## Testes obrigatórios antes de liberar o endpoint
+Variáveis obrigatórias do serviço Java:
 
-- Vetores de teste com certificado ICP-Brasil de homologação em ambiente isolado e certificado de produção em teste controlado.
-- Assinatura detached válida e verificação com ferramenta independente compatível com a política aplicada.
-- Alteração de um único byte do AFD deve invalidar a assinatura.
-- Rejeitar assinatura attached, assinatura sem signingCertificate/v2, sem sigPolicyId, com messageDigest ou contentType ausente/incorreto.
-- Rejeitar certificado expirado, revogado, cadeia incompleta, certificado de homologação em produção e titular divergente do desenvolvedor cadastrado.
-- Rejeitar LPA vencida, não assinada, adulterada, indisponível ou fora da vigência. Validar assinatura CMS e hash do DER independentemente do `PolicyValidator` do Demoiselle. Manter cache somente com validação de integridade e vigência.
-- Testar concorrência, timeout, indisponibilidade do assinador, repetição de operação e integridade dos nomes/pares AFD + P7S.
-- Conferência independente do leiaute AFD v004 e do algoritmo de hash tipo 7 antes de qualquer exportação legal.
+- `REP_CADES_SERVICE_TOKEN`, `REP_CADES_BIND_HOST`, `PORT`.
+- `REP_CADES_TRUST_ANCHORS` e `REP_CADES_TRUST_ANCHORS_SHA256`: bundle PEM somente com as raízes oficiais v5/v12 e pin SHA-256 aprovado por canal independente.
+- `REP_CADES_LPA_DER`, `REP_CADES_LPA_P7S`, `REP_CADES_LPA_SHA256`, `REP_CADES_LPA_SIGNATURE_SHA256`.
+- `REP_CADES_POLICY_DER`, `REP_CADES_POLICY_OID`, `REP_CADES_POLICY_URI`, `REP_CADES_POLICY_VERSION=2.4`, `REP_CADES_POLICY_ATTRIBUTE_SHA256`.
+- `REP_CADES_KEYSTORE`, `REP_CADES_KEYSTORE_PASSWORD`, `REP_CADES_CERT_SHA256`, `REP_CADES_DEVELOPER_CPF`, `REP_CADES_ENVIRONMENT=production`.
 
-## Critério de conclusão
+O SHA-256 de `REP_CADES_POLICY_ATTRIBUTE_SHA256` corresponde ao hash interno `SignPolicyHash` da PA, usado no atributo `sigPolicyId`; **não** é o SHA-256 do arquivo DER inteiro. O hash do DER completo é comparado com o hash publicado na LPA. Os sidecars HTTP do ITI servem como conferência de consistência, não como raiz de confiança independente.
 
-A assinatura só poderá ser ativada após implementação e testes automatizados de geração e verificação, certificado ICP-Brasil válido do desenvolvedor, identidade/registro INPI reais, validação independente do AFD/hash e revisão especializada. Até lá, o endpoint deve continuar retornando indisponibilidade para exportação e jamais disponibilizar o AFD sem assinatura.
+Não inserir certificado, PFX/P12, senha, PIN, chave privada, tokens ou hashes não aprovados no Git, frontend, Supabase ou logs. Preferir HSM/PKCS#11 ou chave não exportável. A implementação atual lê PKCS#12 externo; HSM/PKCS#11 ainda não foi integrado.
 
+### Revogação e transporte
 
-## Controles adicionais identificados na versão 4.6.2
+O serviço habilita OCSP e CRL Distribution Points, não habilita `SOFT_FAIL` e limita conexão/leitura a 10 segundos para OCSP, LCR e recuperação de certificados. A indisponibilidade resulta em bloqueio. A rede precisa permitir egress controlado aos respondedores ICP-Brasil.
 
-A revisão das notas de versão 4.6.2 (03/09/2026) identificou uma ressalva relevante: a validação do hash da política no `CAdESChecker` foi desabilitada por padrão para preservar compatibilidade com assinaturas já aceitas por validadores do SERPRO e do ITI. A mesma release introduziu detecção de inconsistência entre o OID do algoritmo declarado e o tamanho do `hashValue` do `SignaturePolicyIdentifier`. Consequentemente:
+O Java escuta HTTP dentro da rede privada do container. O cliente Node exige HTTPS; use o proxy TLS privado. O exemplo Nginx não habilita mTLS de cliente. Para exigir mTLS, provisionar certificado de cliente no backend Node, configurar o transporte HTTPS para apresentá-lo e validar a identidade no proxy.
 
-- Não tratar `CAdESChecker` como prova suficiente de que o hash da PA/LPA foi validado. O serviço deve recomputar SHA-256 do DER da LPA e compará-lo com o valor publicado no canal oficial, além de validar criptograficamente o arquivo de assinatura da LPA.
-- O verificador independente deve conferir o algoritmo declarado, o OID, o tamanho do digest e o digest efetivo do DER. Qualquer inconsistência deve bloquear a assinatura.
-- A cadeia de produção `chain-icp-brasil` deve ser a única cadeia ICP-Brasil habilitada no processo de produção. A documentação da 4.6.2 informa que providers presentes no classpath são carregados automaticamente, inclusive módulos de homologação; portanto, não incluir `chain-icp-brasil-homolog` nem `chain-iti-homolog` no artefato de produção. Não basta configurar um sinalizador se a dependência de homologação continuar empacotada.
-- O trust anchor usado para validar a assinatura da LPA deve ser provisionado fora do repositório, com fingerprint SHA-256 verificado por procedimento operacional independente. Não confiar em certificado raiz recebido no mesmo download que a LPA.
-- O resultado de validação deve distinguir assinatura matemática válida, cadeia confiável, revogação verificada e política vigente. Uma verificação positiva de CMS não equivale, isoladamente, a todas essas condições.
+## Testes já automatizados
 
-A LPA CAdES publicada pelo ITI é atualizada em ciclos e contém `nextUpdate`; o ITI informa que a própria LPA é assinada com PKCS#7 por certificado de pessoa jurídica do ITI. O serviço deve falhar fechado quando não conseguir baixar ou validar os artefatos, sem reaproveitar indefinidamente um cache expirado.
+O CI atual executa testes Java/JUnit, verifica CMS detached com OpenSSL 3 como segunda implementação, confere dependências no JAR sombreado e constrói a imagem Docker. A suíte inclui:
+- atributos CAdES obrigatórios e verificação de assinatura detached;
+- assinatura RSA/SHA-256 e ECDSA/SHA-256 com chaves efêmeras;
+- vinculação chave privada/certificado;
+- períodos, revogação e nextUpdate da PA/LPA;
+- seleção das raízes v5/v12;
+- parsing JSON estrito, autenticação Bearer, API HTTP, backpressure e payload Base64 até o tamanho máximo do AFD.
 
-## Critérios de teste adicionais
+Esses testes provam funcionamento do código com vetores sintéticos e a matemática CMS, não conformidade da cadeia real. Ainda faltam LPA/PA oficiais provisionadas, raízes aprovadas, certificado real do desenvolvedor, ensaio OCSP/CRL real e validação independente da cadeia/atributos em ambiente controlado.
 
-- Teste negativo com hash DER alterado, hash publicado adulterado, OID de algoritmo incorreto e `hashValue` com tamanho incompatível.
-- Teste de empacotamento que falha se qualquer artefato de cadeia de homologação estiver no classpath/runtime de produção.
-- Teste com certificado da LPA fora da cadeia confiável configurada, certificado expirado ou revogado.
-- Teste de indisponibilidade do ITI e de `nextUpdate` vencido: nenhuma assinatura pode ser produzida usando LPA vencida.
+## Lacunas antes de ativar o AFD
 
+1. Provisionar LPA/PA e raízes v5/v12 atuais do ITI, com hashes e fingerprints aprovados por procedimento independente.
+2. Provisionar o certificado ICP-Brasil real do desenvolvedor e confirmar CPF, cadeia, validade e revogação com OCSP/LCR reais.
+3. Avaliar HSM/PKCS#11 ou proteção equivalente para a chave privada.
+4. Implantar proxy HTTPS privado, segredos externos, regras de rede, auditoria operacional e, se exigido, mTLS de cliente.
+5. Integrar o cliente Node ao Java e implementar uma segunda validação CMS independente antes de liberar o arquivo.
+6. Validar independentemente o leiaute AFD v004 e o algoritmo SHA-256 do tipo 7.
+7. Fazer ensaio ponta a ponta com AFD real de teste, assinatura `.p7s`, alteração de byte, certificado expirado/revogado e falha de rede.
+8. Concluir documentação legal, dados reais do empregador/desenvolvedor, registro INPI, HLB, PTRP/AEJ, comprovante e revisão especializada.
 
-## Fontes oficiais e bootstrap de confiança da LPA
-
-Fontes consultadas em 27/11/2026:
-
-- Página de publicação e situação das políticas: https://www.gov.br/iti/pt-br/assuntos/repositorio/lista-de-politicas-de-assinatura
-- LPA CAdES DER: http://politicas.icpbrasil.gov.br/LPA_CAdES.der
-- Hash publicado do DER: http://politicas.icpbrasil.gov.br/LPA_CAdES_der-sha256.txt
-- Assinatura PKCS#7 da LPA: http://politicas.icpbrasil.gov.br/LPA_CAdES.p7s
-- Hash publicado do arquivo PKCS#7: http://politicas.icpbrasil.gov.br/LPA_CAdES_p7s-sha256.txt
-- Repositório oficial de certificados das ACs ICP-Brasil: https://www.gov.br/iti/pt-br/assuntos/repositorio/certificados-das-acs-da-icp-brasil-arquivo-unico-compactado
-
-A página do ITI consultada apresenta o ciclo CAdES vigente de 03/10/2026 a 01/01/2027. O pacote de cadeias ICP-Brasil foi atualizado em 04/11/2026. Essas datas são referência da consulta, não valores permanentes: o processo de bootstrap deve consultar a página oficial a cada atualização e registrar a versão/data dos artefatos efetivamente usados.
-
-**Ordem de confiança obrigatória:**
-
-1. Obter a cadeia vigente de ACs por canal HTTPS oficial do ITI e validar o hash SHA-512 publicado pelo próprio ITI. O trust anchor efetivamente instalado deve ter fingerprint SHA-256 previamente aprovado e provisionado fora do repositório; não instalar automaticamente qualquer certificado extraído do ZIP como raiz confiável.
-2. Baixar LPA DER e .p7s. Calcular SHA-256 dos dois arquivos e comparar com os sidecars publicados. Como os links de artefato atualmente listados pelo ITI usam HTTP, os sidecars são uma verificação de consistência, não uma âncora de confiança independente.
-3. Verificar a assinatura CMS/PKCS#7 destacada da LPA sobre os bytes DER exatos. Validar o certificado signatário, construir caminho até o trust anchor previamente aprovado e verificar validade temporal e revogação por mecanismo ICP-Brasil operacional. Se a revogação não puder ser determinada, o resultado é inconclusivo e deve bloquear o serviço.
-4. Só depois da validação criptográfica e da cadeia, interpretar a estrutura ASN.1, nextUpdate, períodos de vigência, OIDs, URLs e hashes das políticas. Conferir novamente o hash do DER da política específica antes de passá-la ao mecanismo CAdES.
-5. Persistir metadados de auditoria (hashes, data de obtenção, nextUpdate, fingerprint do signatário da LPA, trust anchor usado e resultado da validação), nunca confiar apenas em cache vencido.
-
-O DOC-ICP-15.03 v9.1 determina que a LPA seja assinada digitalmente pelo ITI e descreve a publicação de hashes das políticas. O documento também estabelece atualização da LPA em prazo máximo de 90 dias e assinatura PKCS#7 para CAdES/PAdES. A indisponibilidade de artefato, falha de assinatura, cadeia não confiável, revogação não verificável ou nextUpdate vencido deve interromper a assinatura; não existe fallback permissivo.
+Até cumprir esses itens, a rota AFD deve continuar retornando 503 e jamais liberar arquivo sem assinatura. Este documento não é laudo jurídico, atestado de conformidade nem autorização de uso legal.
