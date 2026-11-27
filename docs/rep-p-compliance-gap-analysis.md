@@ -50,14 +50,14 @@ A página do MTE disponibiliza versões atualizadas em 31/07/2026:
 | CPF do trabalhador | Migration 009 adiciona validação matemática no cadastro, exige CPF válido na RPC de marcação e preserva snapshot de 11 dígitos; registros antigos podem continuar sem CPF | Completar integração de alterações cadastrais com registro AFD tipo 5 e revisar tratamento de dados pessoais |
 | Coletor | Backend exige identificador estável e código normativo 01–05; configuração inicial do tablet via navegador é 02 | Inventariar cada coletor físico e controlar seu ciclo de vida e alterações |
 | Horários | recorded_at existe; created_at é gerado pelo banco | Formalizar e preservar horário da marcação e horário da gravação, ambos com fuso |
-| Eventos da ARP | Migrations 012 e 013 registram eventos AFD tipo 5 (empregado) e tipo 2 (empregador), com NSR compartilhado e trilha imutável; tipo 2 exige CPF válido do administrador responsável | Completar campos normativos do tipo 5 (CPF do responsável e demais dados de identificação), integrar eventos técnicos (tipo 6), completar CPF do responsável nos tipos 5 e validar serialização/CRC na geração AFD |
+| Eventos da ARP | Migrations 012 e 013 registram eventos AFD tipo 5 (empregado) e tipo 2 (empregador), com NSR compartilhado e trilha imutável; tipo 2 exige CPF válido do administrador responsável | Completar campos normativos do tipo 5 (CPF do responsável e demais dados de identificação), integrar eventos técnicos (tipo 6), completar CPF do responsável nos tipos 5, integrar monitor externo para quedas abruptas e retorno de energia (02), e validar serialização/CRC na geração AFD |
 | Dados do empregador | Migration 013 adiciona fluxo administrativo protegido para CPF do responsável e dados do empregador; alteração gera AFD tipo 2 transacional | Integrar formulário administrativo, preencher dados reais da Loja do Cabeleireiro e validar CNPJ/CPF, CAEPF/CNO e local de prestação antes da operação real |
 | Identidade do software | Não há número INPI nem metadados completos do desenvolvedor | Criar configuração versionada com registro INPI, versão, CPF/nome/e-mail do desenvolvedor |
 | AFD | Ainda não implementado | Gerar AFD por intervalo temporal, leiaute 004, CRLF, ISO-8859-1, registros ordenados, trailer e assinatura CAdES |
 | AEJ/PTRP | Tratamento formal e AEJ ainda não implementados | Criar trilha de tratamento sem alterar originais, geração AEJ 002 e Espelho |
 | Comprovante | Não há comprovante REP-P assinado | Gerar PDF PAdES por marcação e disponibilizar histórico mínimo de 48 horas |
 | HLB | clock_timestamp() do PostgreSQL, sem prova de sincronismo | Hospedar o serviço de tempo em infraestrutura controlada, sincronizar com ON/HLB, monitorar desvio e guardar evidências operacionais |
-| Disponibilidade | Não há registro de início/fim do serviço | Registrar eventos 07/08 e monitorar disponibilidade, backup e recuperação |
+| Disponibilidade | Migration 015 registra eventos 07/08 no início e no encerramento gracioso do backend, com NSR e timestamp DH | Monitor externo para quedas abruptas, eventos de retorno de energia (02), alertas, backup e recuperação |
 | RPCs legadas e acesso | Migration 011 revoga do navegador as RPCs legadas de listagem, PIN e marcação; histórico legado é consultado somente pelo backend | Validar rate limiting e sessões reais Auth; revisar periodicamente grants e advisors do Supabase |
 | Assinatura | Não implementada | Certificado ICP-Brasil do desenvolvedor, assinatura CAdES destacada de AFD/AEJ e PAdES do comprovante |
 
@@ -65,7 +65,15 @@ A página do MTE disponibiliza versões atualizadas em 31/07/2026:
 
 
 
-### Ajuste do relógio (migration 014)\n\nA RPC `admin_adjust_rep_clock` exige administrador autenticado e CPF válido no perfil. Recebe os instantes explícitos anterior e posterior ao ajuste físico, preserva segundos e offset no formato DH do AFD, registra o instante de gravação e o responsável, e chama a API interna de eventos para alocar NSR compartilhado e gravar tipo 4 em `rep_events` e `rep_ledger` na mesma transação. Instantes ausentes, infinitos ou iguais são rejeitados. A função não altera o relógio do servidor nem comprova sincronismo HLB; ainda é necessário um controlador confiável integrado ao Observatório Nacional, com evidência de leitura imediatamente antes/depois do ajuste.\n\n### Identificação do empregador (migration 013)
+### Eventos de disponibilidade do serviço (migration 015)
+
+A RPC backend-only `record_rep_service_event` registra apenas transições reais 07 (disponibilidade) e 08 (indisponibilidade) do ciclo de vida do servidor REP-P, com timestamp DH de 24 caracteres, origem do evento e NSR compartilhado. O backend tenta gravar 07 após iniciar a escuta e 08 em encerramento gracioso (`SIGTERM`/`SIGINT`); a prontidão da API só é liberada depois da confirmação do evento 07. Uma queda abrupta pode impedir o registro 08, por isso ainda é necessário monitor externo para detectar indisponibilidade não graciosa. O código 02 (retorno de energia) não é gerado sem sensor ou evidência real de energia. A variável privada `REP_ESTABLISHMENT_ID` vincula o processo ao estabelecimento.
+
+### Ajuste do relógio (migration 014)
+
+A RPC `admin_adjust_rep_clock` exige administrador autenticado e CPF válido no perfil. Recebe os instantes explícitos anterior e posterior ao ajuste físico, preserva segundos e offset no formato DH do AFD, registra o instante de gravação e o responsável, e chama a API interna de eventos para alocar NSR compartilhado e gravar tipo 4 em `rep_events` e `rep_ledger` na mesma transação. Instantes ausentes, infinitos ou iguais são rejeitados. A função não altera o relógio do servidor nem comprova sincronismo HLB; ainda é necessário um controlador confiável integrado ao Observatório Nacional, com evidência de leitura imediatamente antes/depois do ajuste.
+
+### Identificação do empregador (migration 013)
 
 A migration 013 adiciona o CPF do responsável ao perfil administrativo, sem expor essa coluna por grants de leitura do cliente. O administrador informa seu CPF por `admin_set_responsible_cpf`; a alteração dos dados do estabelecimento é feita por `admin_save_establishment`. Um trigger valida a sessão administrativa, o CPF do responsável e os campos do empregador, e gera o AFD tipo 2 com NSR na mesma transação. Se faltar CPF ou algum campo obrigatório, a alteração é revertida. A integração do formulário administrativo ainda está pendente; os dados reais da empresa não foram preenchidos no staging.
 
