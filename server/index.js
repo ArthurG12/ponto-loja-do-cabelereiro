@@ -96,7 +96,7 @@ const server = createServer(async (req, res) => {
     vary: 'Origin',
   } : {};
 
-  if (origin && origin !== allowedOrigin) {
+  if (req.url === '/api/rep-p/register' && origin && origin !== allowedOrigin) {
     send(res, 403, { ok: false, error: 'Origem não autorizada.' });
     return;
   }
@@ -123,7 +123,8 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, '127.0.0.1', () => {
+const HOST = process.env.HOST || '127.0.0.1';
+server.listen(PORT, HOST, () => {
   console.log(`Banco SQLite em ${store.file}`);
-  console.log(`API em http://127.0.0.1:${PORT}`);
+  console.log(`API em http://${HOST}:${PORT}`);
 });
