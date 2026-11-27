@@ -61,7 +61,7 @@ export async function requestCadesDetachedSignature(content, {
   expectedFingerprint = process.env.REP_CADES_CERT_SHA256 || '',
   expectedPolicyIdentifier = process.env.REP_CADES_POLICY_OID || '',
   fetchImpl = fetch,
-  timeoutMs = 20_000,
+  timeoutMs = 150_000,
   now = new Date(),
 } = {}) {
   if (!Buffer.isBuffer(content) || content.length === 0 || content.length > 25_000_000) {
