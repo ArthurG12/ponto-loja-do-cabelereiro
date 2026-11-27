@@ -99,14 +99,15 @@ export default function Admin({ onClose, onNotice }) {
   }, { overtime: 0, lateDays: 0, incomplete: 0, missing: 0, balance: 0 });
 
   function exportPunches() {
-    const rows = [['Colaboradora', 'Data', 'Horário', 'Marcação', 'Origem']];
+    const rows = [['Colaboradora', 'Data', 'Horário', 'Marcação', 'Origem', 'NSR']];
     punches.filter((punch) => !punch.voided_at && (filterPerson === 'all' || punch.employee_id === filterPerson))
       .forEach((punch) => rows.push([
         staff.find((person) => person.id === punch.employee_id)?.full_name || 'Colaboradora',
         fmtDate(new Date(punch.recorded_at)),
         fmtTime(new Date(punch.recorded_at)),
         PUNCH_LABELS[punch.punch_type] || punch.punch_type,
-        punch.source === 'ajuste' ? 'Ajuste' : 'Tablet',
+        punch.source === 'ajuste' ? 'Ajuste' : punch.nsr ? 'REP-P' : 'Tablet',
+        punch.nsr || '',
       ]));
     downloadCsv(`ponto-batidas-${month}.csv`, rows);
   }
