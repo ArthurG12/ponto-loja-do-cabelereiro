@@ -460,6 +460,7 @@ final class CadesSigner implements CadesSigningService {
         }
         if (certs.isEmpty()) throw new SecurityException("No ICP-Brasil trust anchors provisioned");
         Set<TrustAnchor> anchors = new HashSet<>();
+        Set<String> rootVersions = new HashSet<>();
         for (java.security.cert.Certificate cert : certs) {
             if (!(cert instanceof X509Certificate x509) || x509.getBasicConstraints() < 0) {
                 throw new SecurityException("Trust-anchor bundle contains a non-CA certificate");
@@ -473,10 +474,14 @@ final class CadesSigner implements CadesSigningService {
             if (usage != null && (usage.length <= 5 || !usage[5])) {
                 throw new SecurityException("Trust anchor lacks keyCertSign usage");
             }
+            String subject = x509.getSubjectX500Principal().getName();
+            if (subject.matches("(?i).*\\bv5\\b.*")) rootVersions.add("v5");
+            else if (subject.matches("(?i).*\\bv12\\b.*")) rootVersions.add("v12");
+            else throw new SecurityException("AD-RB 2.4 trust anchor must be ICP-Brasil root v5 or v12");
             anchors.add(new TrustAnchor(x509, null));
         }
-        if (anchors.size() != 2) {
-            throw new SecurityException("AD-RB 2.4 trust bundle must contain exactly the ICP-Brasil v2 and v5 root anchors");
+        if (anchors.size() != 2 || !rootVersions.equals(Set.of("v5", "v12"))) {
+            throw new SecurityException("AD-RB 2.4 trust bundle must contain exactly the ICP-Brasil v5 and v12 root anchors");
         }
         return Set.copyOf(anchors);
     }
