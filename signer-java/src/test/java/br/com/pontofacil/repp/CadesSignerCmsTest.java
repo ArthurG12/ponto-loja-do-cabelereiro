@@ -45,11 +45,11 @@ class CadesSignerCmsTest {
                 List.of(certificate), Set.of(), "SHA256withRSA", policy,
                 HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                         .digest(certificate.getEncoded())).toUpperCase(Locale.ROOT),
-                "12345678901", "production", "2.4");
+                "12345678901", "production", "2.4", new byte[0], new byte[0]);
 
         byte[] content = "AFD test fixture\r\n".getBytes(StandardCharsets.ISO_8859_1);
         String digest = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
-        Map<String, Object> response = signer.sign("123e4567-e89b-12d3-a456-426614174000", content, digest);
+        Map<String, Object> response = signer.signInternal("123e4567-e89b-12d3-a456-426614174000", content, digest);
         byte[] signature = Base64.getDecoder().decode((String) response.get("signature"));
         CMSSignedData cms = new CMSSignedData(new CMSProcessableByteArray(content), signature);
         assertNotNull(cms.getSignedContent());
@@ -82,8 +82,8 @@ class CadesSignerCmsTest {
                 false, new byte[32], "b".repeat(64));
         CadesSigner signer = new CadesSigner(pair.getPrivate(), certificate,
                 List.of(certificate), Set.of(), "SHA256withRSA", policy,
-                "c".repeat(64), "12345678901", "production", "2.4");
-        assertThrows(SecurityException.class, () -> signer.sign(
+                "c".repeat(64), "12345678901", "production", "2.4", new byte[0], new byte[0]);
+        assertThrows(SecurityException.class, () -> signer.signInternal(
                 "123e4567-e89b-12d3-a456-426614174001",
                 "content".getBytes(StandardCharsets.UTF_8), "0".repeat(64)));
     }
