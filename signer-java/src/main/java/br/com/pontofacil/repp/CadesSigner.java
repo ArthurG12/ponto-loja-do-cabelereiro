@@ -43,7 +43,7 @@ import org.bouncycastle.cert.jcajce.JcaCertStore;
  * Strict CAdES detached signer. Every external trust input is mounted outside
  * the repository. Any missing, stale, unverifiable or revoked input aborts.
  */
-final class CadesSigner {
+final class CadesSigner implements CadesSigningService {
     private static final String SHA256_OID = "2.16.840.1.101.3.4.2.1";
     private static final String ICP_CADES_AD_RB_24_OID = "2.16.76.1.7.1.1.2.4";
     private static final ASN1ObjectIdentifier SIGNING_CERT_V2 =
@@ -186,7 +186,7 @@ final class CadesSigner {
                 && (policy.revocationDate == null || policy.revocationDate.isAfter(now));
     }
 
-    boolean ready() {
+    @Override public boolean ready() {
         if (!isPolicyCurrent(policy, Instant.now())) return false;
         try {
             signerCertificate.checkValidity();
@@ -198,7 +198,7 @@ final class CadesSigner {
         }
     }
 
-    Map<String, Object> sign(String operationId, byte[] content, String claimedDigest) throws Exception {
+    @Override public Map<String, Object> sign(String operationId, byte[] content, String claimedDigest) throws Exception {
         validateSigningInput(operationId, content, claimedDigest);
         if (!ready()) throw new SecurityException("CAdES policy, LPA, certificate chain, or revocation status is not valid");
         return signInternal(operationId, content, sha256(content));
