@@ -10,6 +10,8 @@ declare
   mark_count integer;
   failed_attempts integer;
   locked_until timestamptz;
+  ledger_count integer;
+  event_result jsonb;
 begin
 
   -- O cadastro Auth nunca deve promover automaticamente alguém a admin.
@@ -129,6 +131,57 @@ begin
   if result->>'ok' <> 'false' or result->>'error' not like 'Muitas tentativas%' then
     raise exception 'PIN correto não deveria liberar consulta durante o bloqueio.';
   end if;
+
+  -- A marcação original deve ser espelhada no livro AFD com o mesmo NSR.
+  select count(*) into ledger_count
+    from public.rep_ledger
+   where establishment_id = establishment_uuid
+     and nsr = 1
+     and record_type = '7'
+     and source_table = 'time_marks'
+     and source_id = (first_mark->>'id')::uuid;
+  if ledger_count <> 1 then
+    raise exception 'Marcação não foi espelhada corretamente no livro AFD.';
+  end if;
+
+  -- Eventos normativos consomem a mesma sequência NSR das marcações.
+  event_result := public.append_rep_afd_event(
+    establishment_uuid,
+    '6',
+    jsonb_build_object('event_code', '07', 'description', 'CI test service available'),
+    clock_timestamp(),
+    null
+  );
+  if event_result->>'ok' <> 'true' or (event_result->>'nsr')::bigint <> 2 then
+    raise exception 'Evento AFD não consumiu o próximo NSR compartilhado: %', event_result;
+  end if;
+
+  select count(*) into ledger_count
+    from public.rep_ledger
+   where establishment_id = establishment_uuid;
+  if ledger_count <> 2 then
+    raise exception 'Livro AFD deveria conter exatamente dois registros.';
+  end if;
+
+  begin
+    update public.rep_ledger set record_payload = '{}'::jsonb
+      where establishment_id = establishment_uuid and nsr = 1;
+    raise exception 'Livro AFD permitiu UPDATE.';
+  exception when raise_exception then
+    if sqlerrm = 'Livro AFD permitiu UPDATE.' then
+      raise;
+    end if;
+  end;
+
+  begin
+    delete from public.rep_ledger
+      where establishment_id = establishment_uuid and nsr = 1;
+    raise exception 'Livro AFD permitiu DELETE.';
+  exception when raise_exception then
+    if sqlerrm = 'Livro AFD permitiu DELETE.' then
+      raise;
+    end if;
+  end;
 
   -- Funções internas/administrativas não podem ser chamadas como anon.
   if has_function_privilege('anon', 'public.assign_employee_establishment()', 'EXECUTE')
