@@ -26,11 +26,11 @@ class CadesSignerPolicyTest {
         policyInfoFields.add(new DERIA5String(URI));
         ASN1Sequence policyInfo = new DERSequence(policyInfoFields);
 
-        ASN1EncodableVector hashInputFields = new ASN1EncodableVector();
-        hashInputFields.add(hashAlgorithm);
-        hashInputFields.add(policyInfo);
-        byte[] internalHash = MessageDigest.getInstance("SHA-256")
-                .digest(new DERSequence(hashInputFields).getEncoded("DER"));
+        byte[] hashAlgorithmDer = hashAlgorithm.getEncoded("DER");
+        byte[] policyInfoDer = policyInfo.getEncoded("DER");
+        byte[] hashInput = Arrays.copyOf(hashAlgorithmDer, hashAlgorithmDer.length + policyInfoDer.length);
+        System.arraycopy(policyInfoDer, 0, hashInput, hashAlgorithmDer.length, policyInfoDer.length);
+        byte[] internalHash = MessageDigest.getInstance("SHA-256").digest(hashInput);
         byte[] embeddedHash = invalidEmbeddedHash ? new byte[32] : internalHash;
 
         ASN1EncodableVector paFields = new ASN1EncodableVector();
