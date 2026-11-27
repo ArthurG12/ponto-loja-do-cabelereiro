@@ -96,9 +96,13 @@ export async function listRepPunchesToday(input) {
     return { ok: false, error: 'Não foi possível carregar as marcações de hoje.', punches: [] };
   }
 
+  if (data?.ok === false) {
+    return { ok: false, error: data.error || 'Senha inválida.', punches: [] };
+  }
+
   return {
     ok: true,
-    punches: (data || []).map((mark) => ({
+    punches: (data?.punches || []).map((mark) => ({
       id: mark.id,
       employee_id: mark.employee_id,
       punch_type: mark.punch_type,
