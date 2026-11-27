@@ -5,7 +5,7 @@ import { requestCadesDetachedSignature } from './cades-signer-client.js';
 
 const content = Buffer.from('AFD v004 bytes\\r\\n', 'latin1');
 const fingerprint = 'A'.repeat(64);
-const validFrom = '2026-10-03T00:00:00Z';
+const policyValidFrom = '2025-06-12T00:00:00Z';
 const policyValidUntil = '2037-10-22T00:00:00Z';
 const lpaNextUpdate = '2027-01-01T00:00:00Z';
 const policyIdentifier = '2.16.76.1.7.1.1.2.4';
@@ -18,7 +18,7 @@ function validResponse(request) {
     signerCertificateFingerprint: fingerprint,
     policyIdentifier,
     policyVersion: '2.4',
-    policyValidFrom: validFrom,
+    policyValidFrom,
     policyValidUntil,
     lpaNextUpdate,
     lpaSha256: 'C'.repeat(64),
@@ -125,6 +125,23 @@ test('rejects homologation environment and malformed CMS data', async () => {
     const body = JSON.parse(options.body);
     return new Response(JSON.stringify({ ...validResponse(body), signature: 'not base64!' }), { status: 200 });
   })), /CMS.*PKCS#7 inválido/i);
+});
+
+
+test('rejects an unapproved policy identifier', async () => {
+  await assert.rejects(requestCadesDetachedSignature(content, config(async (_url, options) => {
+    const body = JSON.parse(options.body);
+    return new Response(JSON.stringify({ ...validResponse(body), policyIdentifier: '2.16.76.1.7.1.1.2.3' }), { status: 200 });
+  })), /política CAdES\/LPA/i);
+});
+
+test('rejects an LPA without independently verified signature and integrity', async () => {
+  await assert.rejects(requestCadesDetachedSignature(content, config(async (_url, options) => {
+    const body = JSON.parse(options.body);
+    const result = validResponse(body);
+    result.validation.lpaSignatureValid = false;
+    return new Response(JSON.stringify(result), { status: 200 });
+  })), /não foi validada integralmente/i);
 });
 
 test('rejects oversized content and unavailable signer', async () => {
