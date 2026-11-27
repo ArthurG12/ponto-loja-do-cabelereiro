@@ -27,7 +27,7 @@ begin
   insert into public.employees (
     full_name, schedule_code, active, pin_hash
   ) values (
-    'Funcionário de teste', 'A', true, crypt('1234', gen_salt('bf'))
+    'Funcionário de teste', 'A', true, crypt('1234', gen_salt('bf')), '52998224725'
   ) returning id, establishment_id
     into employee_uuid, establishment_uuid;
 
@@ -63,7 +63,7 @@ begin
   if length(first_mark->>'record_hash') <> 64 then
     raise exception 'Hash SHA-256 inválido.';
   end if;
-  if first_mark->>'previous_hash' is not null then
+  if first_mark->>'employee_cpf_snapshot' <> '52998224725' then raise exception 'Snapshot CPF ausente.'; end if;\n  if first_mark->>'collector_type' <> '02' then raise exception 'Tipo de coletor incorreto.'; end if;\n  if first_mark->>'hash_version' <> 'legacy-json-v1' then raise exception 'Hash legado sem identificação.'; end if;\n  if first_mark->>'previous_hash' is not null then
     raise exception 'Primeira marcação não deveria possuir hash anterior.';
   end if;
 
@@ -188,7 +188,7 @@ begin
      or has_function_privilege('anon', 'public.admin_save_employee(uuid,text,text,text,boolean)', 'EXECUTE')
      or has_function_privilege('anon', 'public.admin_adjust_punch(text,uuid,uuid,public.punch_kind,timestamptz,text)', 'EXECUTE')
      or has_function_privilege('anon', 'public.append_rep_afd_event(uuid,text,jsonb,timestamptz,uuid)', 'EXECUTE')
-     or has_function_privilege('authenticated', 'public.append_rep_afd_event(uuid,text,jsonb,timestamptz,uuid)', 'EXECUTE') then
+     or has_function_privilege('authenticated', 'public.append_rep_afd_event(uuid,text,jsonb,timestamptz,uuid)', 'EXECUTE')\n     or has_function_privilege('anon', 'public.register_time_mark(uuid,text,public.punch_kind,uuid,text,text)', 'EXECUTE')\n     or has_function_privilege('authenticated', 'public.register_time_mark(uuid,text,public.punch_kind,uuid,text,text)', 'EXECUTE') then
     raise exception 'Função interna ou administrativa ainda está executável por anon.';
   end if;
 end;
