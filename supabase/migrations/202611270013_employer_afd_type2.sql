@@ -90,7 +90,7 @@ begin
     raise exception 'Cadastre o CPF válido do responsável antes de alterar os dados do empregador.';
   end if;
 
-  if new.employer_id_type not in ('1','2')
+  if new.employer_id_type is null or new.employer_id_type not in ('1','2')
      or new.employer_document is null
      or (new.employer_id_type = '1' and new.employer_document !~ '^[0-9]{14}$')
      or (new.employer_id_type = '2' and new.employer_document !~ '^[0-9]{11}$') then
