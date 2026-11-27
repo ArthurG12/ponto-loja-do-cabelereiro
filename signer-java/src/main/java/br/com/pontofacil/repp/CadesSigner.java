@@ -89,6 +89,12 @@ final class CadesSigner {
         Map<String, String> e = System.getenv();
         Security.setProperty("ocsp.enable", "true");
         System.setProperty("com.sun.security.enableCRLDP", "true");
+        System.setProperty("com.sun.security.ocsp.timeout", "10s");
+        System.setProperty("com.sun.security.ocsp.readtimeout", "10s");
+        System.setProperty("com.sun.security.crl.timeout", "10s");
+        System.setProperty("com.sun.security.crl.readtimeout", "10s");
+        System.setProperty("com.sun.security.cert.timeout", "10s");
+        System.setProperty("com.sun.security.cert.readtimeout", "10s");
         Path trustPath = requiredPath(e, "REP_CADES_TRUST_ANCHORS");
         Path lpaPath = requiredPath(e, "REP_CADES_LPA_DER");
         Path lpaSignaturePath = requiredPath(e, "REP_CADES_LPA_P7S");
