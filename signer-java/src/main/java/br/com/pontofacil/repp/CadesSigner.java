@@ -17,6 +17,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 import org.bouncycastle.asn1.*;
 import org.bouncycastle.asn1.cms.CMSAttributes;
+import org.bouncycastle.asn1.cms.CMSObjectIdentifiers;
 import org.bouncycastle.asn1.cms.Attribute;
 import org.bouncycastle.asn1.ess.ESSCertIDv2;
 import org.bouncycastle.asn1.ess.SigningCertificateV2;
@@ -120,7 +121,7 @@ final class CadesSigner {
         Enumeration<String> aliases = keyStore.aliases();
         while (aliases.hasMoreElements()) {
             String candidate = aliases.nextElement();
-            if (keyStore.isKeyEntry(candidate) && keyStore.getKey(candidate, keyPassword.toCharArray()) instanceof PrivateKey) {
+            if (keyStore.isKeyEntry(candidate)) {
                 if (alias != null) throw new SecurityException("PKCS#12 must contain exactly one signing key");
                 alias = candidate;
             }
@@ -285,7 +286,7 @@ final class CadesSigner {
         selector.setCertificate(leaf);
         PKIXBuilderParameters params = new PKIXBuilderParameters(anchors, selector);
         params.setDate(Date.from(Instant.now()));
-        params.setRevocationEnabled(true);
+        params.setRevocationEnabled(false);
         Collection<X509Certificate> all = new ArrayList<>(available);
         all.add(leaf);
         params.addCertStore(CertStore.getInstance("Collection",
