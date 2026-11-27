@@ -59,6 +59,25 @@ test('REP-P routes reject unapproved browser origins', async () => {
   assert.equal(response.status, 403);
 });
 
+test('employee directory endpoint fails closed without backend credentials', async () => {
+  const response = await fetch(`${baseUrl}/api/rep-p/employees`);
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), {
+    ok: false,
+    error: 'Serviço REP-P não configurado.',
+  });
+});
+
+test('employee directory endpoint accepts GET only', async () => {
+  const response = await fetch(`${baseUrl}/api/rep-p/employees`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  assert.equal(response.status, 405);
+  assert.equal(response.headers.get('allow'), 'GET, OPTIONS');
+});
+
 test('REP-P routes reject unsupported HTTP methods', async () => {
   const response = await fetch(`${baseUrl}/api/rep-p/register`, {
     method: 'GET',
