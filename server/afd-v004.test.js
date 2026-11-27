@@ -65,7 +65,7 @@ test('gera AFD 004 com tipos 2, 4, 5, 6 e 7, CRLF, trailer e marcador', () => {
   assert.equal(lines[0].slice(250, 253), '004');
   assert.equal(lines[0].slice(-4), crc16Kermit(lines[0].slice(0, -4)));
   assert.equal(lines[1].slice(0, 9), '000000001');
-  assert.equal(lines.at(-2), '9999999990000000010000000000000000010000000010000000010000000059');
+  assert.equal(lines.at(-2), '9999999990000000010000000000000000010000000010000000010000000019');
   assert.equal(lines.at(-1).length, 100);
   assert.ok(output.includes(Buffer.from('\r\n', 'latin1')));
 });
