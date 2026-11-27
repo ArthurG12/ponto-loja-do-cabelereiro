@@ -99,4 +99,20 @@ class CadesSignerCmsTest {
                 "123e4567-e89b-12d3-a456-426614174001",
                 "content".getBytes(StandardCharsets.UTF_8), "0".repeat(64)));
     }
+    @Test void enforcesAdRb24RsaAlgorithmAndMinimumKeySize() throws Exception {
+        KeyPairGenerator rsa2048 = KeyPairGenerator.getInstance("RSA");
+        rsa2048.initialize(2048);
+        assertEquals("SHA256withRSA", CadesSigner.signatureAlgorithmFor(rsa2048.generateKeyPair().getPrivate()));
+
+        KeyPairGenerator rsa1024 = KeyPairGenerator.getInstance("RSA");
+        rsa1024.initialize(1024);
+        assertThrows(SecurityException.class,
+                () -> CadesSigner.signatureAlgorithmFor(rsa1024.generateKeyPair().getPrivate()));
+
+        KeyPairGenerator ec = KeyPairGenerator.getInstance("EC");
+        ec.initialize(256);
+        assertThrows(SecurityException.class,
+                () -> CadesSigner.signatureAlgorithmFor(ec.generateKeyPair().getPrivate()));
+    }
+
 }
