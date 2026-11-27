@@ -4,13 +4,13 @@
 
 ## Componentes implementados
 
-- Serviço HTTP isolado com autenticação Bearer serviço-a-serviço, limite de corpo, respostas sem cache e bind local por padrão (127.0.0.1).
+- Serviço HTTP isolado com autenticação Bearer serviço-a-serviço, limite de corpo, JSON estrito (sem campos duplicados, extras ou valores JSON concatenados), validação de Content-Type/Content-Length, respostas sem cache, erros 400/413/415 apropriados e encerramento gracioso do executor.
 - Verificação de LPA CAdES detached: CMS/PKCS#7 sobre os bytes DER exatos, certificado do signatário, caminho até trust anchors provisionados, validade e revogação com PKIX/OCSP/CRL em modo fail-closed.
 - Integridade por SHA-256 pinado independentemente para LPA DER e assinatura .p7s.
 - Leitura ASN.1 da LPA: nextUpdate, OID, URI, período e revogação da política.
 - Conferência do hash SHA-256 da política DER publicado na LPA e do hash interno da PA usado no atributo CAdES.
 - Restrição explícita à política ICP-Brasil CAdES AD-RB versão 2.4 (OID 2.16.76.1.7.1.1.2.4).
-- Carregamento de identidade PKCS#12 externa ao repositório; pin SHA-256 do certificado, CPF do desenvolvedor no Subject e digitalSignature KeyUsage.
+- Carregamento de identidade PKCS#12 externa ao repositório; pin SHA-256 do certificado, CPF do desenvolvedor no Subject, certificado final não-CA, digitalSignature KeyUsage e prova criptográfica de correspondência entre chave privada e certificado na inicialização.
 - Construção CMS detached com contentType, messageDigest, signingCertificateV2 e sigPolicyId.
 - Reabertura e verificação criptográfica independente do CMS recém-gerado antes de retornar a assinatura.
 - A rota só responde ready depois de validar configuração, LPA, política, cadeia e identidade. Falha de validação bloqueia inicialização ou assinatura.
@@ -24,7 +24,8 @@ Os arquivos devem ser montados por secret manager/volume protegido, fora do Git 
 | REP_CADES_SERVICE_TOKEN | segredo serviço-a-serviço com pelo menos 32 caracteres |
 | REP_CADES_BIND_HOST | padrão 127.0.0.1; usar IP privado explícito se necessário |
 | PORT | porta HTTP, padrão 8787 |
-| REP_CADES_TRUST_ANCHORS | bundle PEM de âncoras ICP-Brasil aprovadas, provisionado fora do repositório |\n| REP_CADES_TRUST_ANCHORS_SHA256 | SHA-256 aprovado do bundle PEM exato de âncoras |
+| REP_CADES_TRUST_ANCHORS | bundle PEM de âncoras ICP-Brasil aprovadas, provisionado fora do repositório |
+| REP_CADES_TRUST_ANCHORS_SHA256 | SHA-256 aprovado do bundle PEM exato de âncoras |
 | REP_CADES_LPA_DER | caminho da LPA CAdES DER oficial |
 | REP_CADES_LPA_P7S | caminho da assinatura PKCS#7 detached da LPA |
 | REP_CADES_POLICY_DER | caminho da PA CAdES DER correspondente |
@@ -55,7 +56,7 @@ A porta não deve ser publicada na Internet. Use rede privada e TLS/mTLS na fron
 
 ## Testes e limites ainda abertos
 
-- CI Maven/JDK 21 cobre compilação, pacote, controles de token, parsing ASN.1 da LPA/PA e geração/verificação CMS detached com chave RSA efêmera de teste.
+- CI Maven/JDK 21 cobre compilação, pacote, controles de token, parsing ASN.1 da LPA/PA, limites de vigência de 90 dias, rejeição de JSON ambíguo e geração/verificação CMS detached com chave RSA efêmera de teste.
 - Vetores sintéticos não demonstram que os artefatos oficiais atuais, a cadeia ICP-Brasil ou o certificado real do desenvolvedor serão aceitos.
 - Ainda são necessários testes de integração com LPA CAdES oficial assinada pelo ITI, trust anchors oficiais pinados, respostas OCSP/CRL reais, certificado ICP-Brasil válido do desenvolvedor e verificação por uma segunda implementação independente.
 - A validação da revogação depende de conectividade aos respondedores OCSP/CRL; indisponibilidade ou resultado inconclusivo bloqueia.
@@ -74,3 +75,6 @@ mvn --batch-mode test package
 ~~~
 
 Não use certificado de produção em ambiente de desenvolvimento. Não exponha o serviço à rede pública.
+
+
+Referências oficiais para atualização dos artefatos: [LPA CAdES do ITI](https://www.gov.br/iti/pt-br/assuntos/repositorio/lista-de-politicas-de-assinatura), [DOC-ICP-15.01](https://repositorio.iti.gov.br/instrucoes-normativas/IN2021_01_DOC-ICP-15.01.htm) e [DOC-ICP-15.03 v9.1](https://www.gov.br/iti/pt-br/assuntos/legislacao/documentos-principais/v9.1_IN2021_03_DOCICP15.03_compilada.pdf). O ciclo da LPA CAdES vigente deve ser reconfirmado a cada provisionamento; não reutilize indefinidamente os artefatos locais.
