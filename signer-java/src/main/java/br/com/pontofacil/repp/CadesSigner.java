@@ -192,6 +192,10 @@ final class CadesSigner {
     // Package-scoped primitive test seam. The HTTP service only calls sign(), which
     // performs LPA, trust-chain and revocation checks before reaching this method.
     Map<String, Object> signInternal(String operationId, byte[] content, String digest) throws Exception {
+        if (content == null || content.length == 0 || content.length > 25_000_000
+                || !sha256(content).equalsIgnoreCase(digest)) {
+            throw new SecurityException("Content digest mismatch");
+        }
         byte[] certHash = MessageDigest.getInstance("SHA-256").digest(signerCertificate.getEncoded());
         ESSCertIDv2 essCert = new ESSCertIDv2(certHash);
         SigningCertificateV2 signingCertificate = new SigningCertificateV2(new ESSCertIDv2[]{essCert});
