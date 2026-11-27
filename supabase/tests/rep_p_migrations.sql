@@ -160,6 +160,53 @@ begin
     raise exception 'Desativação de empregado não gerou evento AFD tipo 5.';
   end if;
 
+  -- Tipo 2: o responsável deve ter CPF válido; sem ele a alteração inteira falha.
+  update public.profiles
+     set role = 'admin'::public.app_role
+   where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  perform set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
+
+  begin
+    perform public.admin_save_establishment(
+      establishment_uuid, '1', '12345678000195', null,
+      'Loja do Cabeleireiro LTDA', 'Rua de Teste, 100'
+    );
+    raise exception 'Alteração do empregador sem CPF responsável deveria falhar.';
+  exception when raise_exception then
+    if sqlerrm = 'Alteração do empregador sem CPF responsável deveria falhar.' then raise; end if;
+    if sqlerrm not like '%CPF válido do responsável%' then raise; end if;
+  end;
+
+  if exists (
+    select 1 from public.establishments
+    where id = establishment_uuid and employer_document is not null
+  ) then
+    raise exception 'Alteração do empregador sem CPF foi parcialmente persistida.';
+  end if;
+
+  perform public.admin_set_responsible_cpf('52998224725');
+  perform public.admin_save_establishment(
+    establishment_uuid, '1', '12345678000195', null,
+    'Loja do Cabeleireiro LTDA', 'Rua de Teste, 100'
+  );
+
+  if not exists (
+    select 1 from public.rep_ledger
+    where establishment_id = establishment_uuid
+      and nsr = 6 and record_type = '2'
+      and record_payload->>'responsible_cpf' = '52998224725'
+      and record_payload->>'employer_id_type' = '1'
+      and record_payload->>'employer_document' = '12345678000195'
+      and record_payload->>'legal_name' = 'Loja do Cabeleireiro LTDA'
+      and record_payload->>'service_location' = 'Rua de Teste, 100'
+  ) then
+    raise exception 'Alteração do empregador não gerou AFD tipo 2 completo.';
+  end if;
+
+  if (select count(*) from public.rep_ledger where establishment_id = establishment_uuid) <> 6 then
+    raise exception 'Livro AFD deveria conter seis eventos após a alteração do empregador.';
+  end if;
+
   if public.rep_afd_format_dh('2026-01-02T13:03:42+00'::timestamptz, 'America/Sao_Paulo') <> '2026-01-02T10:03:00-0300' then
     raise exception 'Formatação DH AFD incorreta.';
   end if;
@@ -192,7 +239,9 @@ begin
      or has_function_privilege('authenticated', 'public.list_employee_punches(uuid,text,date)', 'EXECUTE')
      or has_function_privilege('anon', 'public.register_punch(uuid,text,public.punch_kind,uuid)', 'EXECUTE')
      or has_function_privilege('authenticated', 'public.register_punch(uuid,text,public.punch_kind,uuid)', 'EXECUTE')
-     or has_function_privilege('authenticated', 'public.admin_save_employee(uuid,text,text,text,boolean)', 'EXECUTE') then
+     or has_function_privilege('authenticated', 'public.admin_save_employee(uuid,text,text,text,boolean)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.admin_save_establishment(uuid,text,text,text,text,text)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.admin_set_responsible_cpf(text)', 'EXECUTE') then
     raise exception 'RPC legada ou função interna REP-P executável por papel não confiável.';
   end if;
 
