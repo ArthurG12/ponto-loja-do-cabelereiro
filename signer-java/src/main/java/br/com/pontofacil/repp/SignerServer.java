@@ -17,8 +17,9 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 public final class SignerServer {
@@ -60,11 +61,12 @@ public final class SignerServer {
             else respond(exchange, 503, "{\"status\":\"not_ready\",\"signingEnabled\":false}");
         });
         server.createContext("/v1/sign-detached", this::signDetached);
-        executor = Executors.newFixedThreadPool(4, task -> {
+        executor = new ThreadPoolExecutor(4, 4, 0L, TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(32), task -> {
             Thread thread = new Thread(task, "rep-p-cades-http");
             thread.setDaemon(false);
             return thread;
-        });
+        }, new ThreadPoolExecutor.CallerRunsPolicy());
         server.setExecutor(executor);
         server.start();
     }
