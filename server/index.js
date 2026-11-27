@@ -4,8 +4,8 @@ import { registerRepPunch } from './rep-p.js';
 
 const PORT = Number(process.env.PORT || 5176);
 
-function send(res, status, body, cookie) {
-  const headers = { 'content-type': 'application/json; charset=utf-8' };
+function send(res, status, body, cookie, extraHeaders = {}) {
+  const headers = { 'content-type': 'application/json; charset=utf-8', ...extraHeaders };
   if (cookie) headers['set-cookie'] = cookie;
   res.writeHead(status, headers);
   res.end(JSON.stringify(body));
@@ -85,7 +85,28 @@ const routes = {
   '/api/import': (body) => store.importLegacy(body),
 };
 
+const allowedOrigin = process.env.REP_ALLOWED_ORIGIN || '';
 const server = createServer(async (req, res) => {
+  const origin = req.headers.origin || '';
+  const corsHeaders = origin && origin === allowedOrigin ? {
+    'access-control-allow-origin': origin,
+    'access-control-allow-methods': 'POST, OPTIONS',
+    'access-control-allow-headers': 'content-type',
+    'access-control-max-age': '600',
+    vary: 'Origin',
+  } : {};
+
+  if (origin && origin !== allowedOrigin) {
+    send(res, 403, { ok: false, error: 'Origem não autorizada.' });
+    return;
+  }
+
+  if (req.method === 'OPTIONS' && req.url === '/api/rep-p/register' && corsHeaders['access-control-allow-origin']) {
+    res.writeHead(204, corsHeaders);
+    res.end();
+    return;
+  }
+
   if (req.method !== 'POST' || !routes[req.url]) {
     send(res, 404, { ok: false, error: 'Caminho não encontrado.' });
     return;
@@ -96,9 +117,9 @@ const server = createServer(async (req, res) => {
     const cookie = result.cookie;
     if (cookie) delete result.cookie;
     if (result.token) delete result.token;
-    send(res, 200, result, cookie);
+    send(res, 200, result, cookie, corsHeaders);
   } catch (error) {
-    send(res, 400, { ok: false, error: error?.message || 'Não foi possível gravar no banco.' });
+    send(res, 400, { ok: false, error: error?.message || 'Não foi possível gravar no banco.' }, null, corsHeaders);
   }
 });
 
