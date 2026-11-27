@@ -92,6 +92,15 @@ jobs:
           java-version: '21'
           cache: maven
           cache-dependency-path: signer-java/pom.xml
-      - name: Test fail-closed Java signer bootstrap
+      - name: Verify independent OpenSSL support
+        run: openssl version
+      - name: Test CAdES signer with Java and OpenSSL
         working-directory: signer-java
-        run: mvn --batch-mode test package
+        run: mvn --batch-mode -Drep.cades.opensslTest=true test package
+      - name: Verify shaded JAR contains runtime dependencies
+        working-directory: signer-java
+        run: |
+          jar tf target/rep-p-cades-signer-0.1.0-SNAPSHOT.jar | grep -q 'org/bouncycastle/jce/provider/BouncyCastleProvider.class'
+          jar tf target/rep-p-cades-signer-0.1.0-SNAPSHOT.jar | grep -q 'com/fasterxml/jackson/databind/ObjectMapper.class'
+      - name: Build private non-root signer image
+        run: docker build --file signer-java/Dockerfile --tag rep-p-cades-signer:ci .
