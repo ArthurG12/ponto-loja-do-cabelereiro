@@ -1,5 +1,5 @@
 -- Teste de integração das migrations REP-P em PostgreSQL limpo.
--- Executado pelo GitHub Actions após schema.sql e migrations 001–006.
+-- Executado pelo GitHub Actions após schema.sql e migrations 001–007.
 
 do $$
 declare
@@ -11,6 +11,17 @@ declare
   failed_attempts integer;
   locked_until timestamptz;
 begin
+
+  -- O cadastro Auth nunca deve promover automaticamente alguém a admin.
+  insert into auth.users (id) values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+  if not exists (
+    select 1 from public.profiles
+    where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+      and role = 'employee'::public.app_role
+  ) then
+    raise exception 'Novo usuário Auth não foi criado como employee.';
+  end if;
+
   insert into public.employees (
     full_name, schedule_code, active, pin_hash
   ) values (
