@@ -100,7 +100,7 @@ final class CadesSigner {
         String cpf = digits(required(e, "REP_CADES_DEVELOPER_CPF"));
         String environment = required(e, "REP_CADES_ENVIRONMENT");
         if (!environment.equals("production") || cpf.length() != 11 || !policyVersion.equals("2.4")
-                || !ICP_CADES_AD_RB_24_OID.equals(policyOid) || !policyUri.startsWith("https://")) {
+                || !ICP_CADES_AD_RB_24_OID.equals(policyOid) || !(policyUri.startsWith("http://") || policyUri.startsWith("https://"))) {
             throw new IllegalStateException("Signer production identity or policy configuration is invalid");
         }
 
