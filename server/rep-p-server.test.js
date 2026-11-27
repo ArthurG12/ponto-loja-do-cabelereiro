@@ -9,6 +9,7 @@ before(async () => {
   process.env.SUPABASE_URL = '';
   process.env.SUPABASE_SERVICE_ROLE_KEY = '';
   process.env.REP_COLLECTOR_ID = '';
+  process.env.REP_COLLECTOR_TYPE = '';
   process.env.REP_ALLOWED_ORIGIN = '';
   process.env.REP_ALLOWED_ORIGINS = '';
   server = createRepServer();
