@@ -25,8 +25,6 @@ function numericField(value, width, label, { required = false, pad = '0' } = {})
   return pad === ' ' ? valueText.padEnd(width, ' ') : valueText.padStart(width, '0');
 }
 
-}
-
 function employerIdentifier(value, type, label) {
   const digits = String(value ?? '');
   const expected = type === '1' ? 14 : 11;
