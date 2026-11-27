@@ -212,6 +212,7 @@ export function buildAfdV004({ header, records, includeSignatureMarker = true, i
 export function validateAfdV004(input, { initialPreviousType7Hash = null } = {}) {
   const buffer = Buffer.isBuffer(input) ? input : Buffer.from(input);
   const errors = [];
+  if (initialPreviousType7Hash != null && !/^[0-9a-f]{64}$/.test(initialPreviousType7Hash)) errors.push('Hash anterior inicial inválido no AFD.');
   const rawText = buffer.toString('latin1');
   const withoutCrlf = rawText.replaceAll(String.fromCharCode(13, 10), '');
   if (withoutCrlf.includes(String.fromCharCode(10)) || withoutCrlf.includes(String.fromCharCode(13))) errors.push('Quebra de linha diferente de CRLF.');
