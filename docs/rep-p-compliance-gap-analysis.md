@@ -50,8 +50,8 @@ A página do MTE disponibiliza versões atualizadas em 31/07/2026:
 | CPF do trabalhador | Migration 009 adiciona validação matemática no cadastro, exige CPF válido na RPC de marcação e preserva snapshot de 11 dígitos; registros antigos podem continuar sem CPF | Completar integração de alterações cadastrais com registro AFD tipo 5 e revisar tratamento de dados pessoais |
 | Coletor | Backend exige identificador estável e código normativo 01–05; configuração inicial do tablet via navegador é 02 | Inventariar cada coletor físico e controlar seu ciclo de vida e alterações |
 | Horários | recorded_at existe; created_at é gerado pelo banco | Formalizar e preservar horário da marcação e horário da gravação, ambos com fuso |
-| Eventos da ARP | Migration 012 registra inclusão, alteração e desativação de empregado como AFD tipo 5, com NSR compartilhado, snapshot cadastral e responsável quando autenticado | Integrar alterações do empregador (tipo 2), ajustes do relógio (tipo 4) e eventos técnicos (tipo 6); validar payloads finais do leiaute antes de gerar AFD |
-| Dados do empregador | establishments tem nome e documento genérico | Completar tipo/documento, nome legal, local de prestação, CAEPF/CNO quando aplicável |
+| Eventos da ARP | Migrations 012 e 013 registram eventos AFD tipo 5 (empregado) e tipo 2 (empregador), com NSR compartilhado e trilha imutável; tipo 2 exige CPF válido do administrador responsável | Completar campos normativos do tipo 5 (CPF do responsável e demais dados de identificação), integrar ajuste do relógio (tipo 4) e eventos técnicos (tipo 6), e validar serialização/CRC na geração AFD |
+| Dados do empregador | Migration 013 adiciona fluxo administrativo protegido para CPF do responsável e dados do empregador; alteração gera AFD tipo 2 transacional | Integrar formulário administrativo, preencher dados reais da Loja do Cabeleireiro e validar CNPJ/CPF, CAEPF/CNO e local de prestação antes da operação real |
 | Identidade do software | Não há número INPI nem metadados completos do desenvolvedor | Criar configuração versionada com registro INPI, versão, CPF/nome/e-mail do desenvolvedor |
 | AFD | Ainda não implementado | Gerar AFD por intervalo temporal, leiaute 004, CRLF, ISO-8859-1, registros ordenados, trailer e assinatura CAdES |
 | AEJ/PTRP | Tratamento formal e AEJ ainda não implementados | Criar trilha de tratamento sem alterar originais, geração AEJ 002 e Espelho |
@@ -64,6 +64,10 @@ A página do MTE disponibiliza versões atualizadas em 31/07/2026:
 
 
 
+
+### Identificação do empregador (migration 013)
+
+A migration 013 adiciona o CPF do responsável ao perfil administrativo, sem expor essa coluna por grants de leitura do cliente. O administrador informa seu CPF por `admin_set_responsible_cpf`; a alteração dos dados do estabelecimento é feita por `admin_save_establishment`. Um trigger valida a sessão administrativa, o CPF do responsável e os campos do empregador, e gera o AFD tipo 2 com NSR na mesma transação. Se faltar CPF ou algum campo obrigatório, a alteração é revertida. A integração do formulário administrativo ainda está pendente; os dados reais da empresa não foram preenchidos no staging.
 
 ### Eventos cadastrais de empregados (migration 012)
 
