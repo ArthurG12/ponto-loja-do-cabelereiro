@@ -87,3 +87,71 @@ test('REP-P routes reject unsupported HTTP methods', async () => {
   assert.equal(response.status, 405);
   assert.equal(response.headers.get('allow'), 'POST, OPTIONS');
 });
+
+
+async function withTestServer(options, run) {
+  const instance = createRepServer(options);
+  await new Promise((resolve) => instance.listen(0, '127.0.0.1', resolve));
+  const address = instance.address();
+  try {
+    await run(`http://127.0.0.1:${address.port}`);
+  } finally {
+    await new Promise((resolve, reject) => instance.close((error) => error ? reject(error) : resolve()));
+  }
+}
+
+test('AFD export requires a bearer token before invoking authorization or ledger access', async () => {
+  let authorizationCalls = 0;
+  let preparationCalls = 0;
+  await withTestServer({
+    readiness: () => true,
+    authenticateAdmin: async () => { authorizationCalls += 1; return { ok: false }; },
+    prepareAfd: async () => { preparationCalls += 1; return { buffer: Buffer.from('x') }; },
+  }, async (url) => {
+    const response = await fetch(`${url}/api/rep-p/afd?start=2026-11-01&end=2026-11-30`);
+    assert.equal(response.status, 401);
+    assert.equal((await response.json()).error, 'Autenticação necessária.');
+  });
+  assert.equal(authorizationCalls, 0);
+  assert.equal(preparationCalls, 0);
+});
+
+test('AFD export rejects authenticated users who are not administrators', async () => {
+  let preparationCalls = 0;
+  await withTestServer({
+    readiness: () => true,
+    authenticateAdmin: async (token) => ({ ok: false, token }),
+    prepareAfd: async () => { preparationCalls += 1; return { buffer: Buffer.from('x') }; },
+  }, async (url) => {
+    const response = await fetch(`${url}/api/rep-p/afd?start=2026-11-01&end=2026-11-30`, {
+      headers: { authorization: 'Bearer valid-user-token' },
+    });
+    assert.equal(response.status, 401);
+    assert.equal((await response.json()).error, 'Credenciais inválidas ou acesso não autorizado.');
+  });
+  assert.equal(preparationCalls, 0);
+});
+
+test('AFD admin route validates the ledger but never releases an unsigned file', async () => {
+  let received;
+  await withTestServer({
+    readiness: () => true,
+    authenticateAdmin: async (token) => token === 'admin-token' ? { ok: true, userId: 'admin-id' } : { ok: false },
+    prepareAfd: async (input) => {
+      received = input;
+      return { buffer: Buffer.from('prepared-but-unsigned') };
+    },
+  }, async (url) => {
+    const response = await fetch(`${url}/api/rep-p/afd?start=2026-11-01&end=2026-11-30`, {
+      headers: { authorization: 'Bearer admin-token' },
+    });
+    assert.equal(response.status, 503);
+    assert.match((await response.json()).error, /assinatura CAdES detached ICP-Brasil/);
+    assert.equal(response.headers.get('content-type'), 'application/json; charset=utf-8');
+  });
+  assert.deepEqual(received, {
+    startDate: '2026-11-01',
+    endDate: '2026-11-30',
+    actorId: 'admin-id',
+  });
+});
