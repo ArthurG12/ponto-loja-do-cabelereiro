@@ -26,10 +26,12 @@ jobs:
         run: |
           node --check server/index.js
           node --check server/rep-p.js
+          node --check server/afd-v004.js
+          node --check server/afd-v004.test.js
           node --check server/rep-p-server.js
           node --check scripts/dev.mjs
       - name: Test isolated REP-P HTTP API
-        run: npm run test:rep-p
+        run: npm run test:rep-p && npm run test:afd
       - name: Build frontend
         run: npm run build
 
