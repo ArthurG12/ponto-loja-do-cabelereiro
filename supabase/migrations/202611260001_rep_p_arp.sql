@@ -1,6 +1,6 @@
 -- REP-P / ARP — estrutura inicial aditiva
 -- Aplicar somente após backup do banco. Não altera nem remove punches existentes.
--- Esta migration prepara a ARP; a integração do fluxo de marcação será feita em etapa posterior.
+-- As migrations seguintes integram o fluxo transacional de marcação à ARP.
 
 begin;
 
