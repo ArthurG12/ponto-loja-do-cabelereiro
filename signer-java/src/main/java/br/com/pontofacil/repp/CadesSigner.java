@@ -516,6 +516,10 @@ final class CadesSigner implements CadesSigningService {
         String internalHashAlgorithm = ASN1ObjectIdentifier.getInstance(
                 signPolicyHashAlgorithmIdentifier.getObjectAt(0)).getId();
         ASN1Sequence policyInfo = ASN1Sequence.getInstance(paRoot.getObjectAt(1));
+        if (policyInfo.size() < 1
+                || !expectedOid.equals(ASN1ObjectIdentifier.getInstance(policyInfo.getObjectAt(0)).getId())) {
+            throw new SecurityException("SignPolicyInfo OID does not match the selected LPA policy");
+        }
         byte[] hashAlgorithmDer = paRoot.getObjectAt(0).toASN1Primitive().getEncoded(ASN1Encoding.DER);
         byte[] policyInfoDer = policyInfo.getEncoded(ASN1Encoding.DER);
         byte[] hashInput = Arrays.copyOf(hashAlgorithmDer, hashAlgorithmDer.length + policyInfoDer.length);
