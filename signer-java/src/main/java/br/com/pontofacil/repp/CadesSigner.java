@@ -10,6 +10,7 @@ import java.security.*;
 import java.security.cert.*;
 import java.security.interfaces.ECKey;
 import java.security.interfaces.RSAKey;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -123,10 +124,7 @@ final class CadesSigner {
         }
         verifyDetachedCms(lpa, lpaSignature, anchors, true);
         Policy policy = parsePolicy(lpa, policyDer, policyOid, policyUri, policyVersion, policyAttributeHash);
-        if (!policy.nextUpdate.isAfter(Instant.now())
-                || policy.notBefore.isAfter(Instant.now())
-                || !policy.notAfter.isAfter(Instant.now())
-                || (policy.revocationDate != null && !policy.revocationDate.isAfter(Instant.now()))) {
+        if (!isPolicyCurrent(policy, Instant.now())) {
             throw new SecurityException("CAdES policy is expired, not yet valid, revoked, or LPA is stale");
         }
 
@@ -177,11 +175,17 @@ final class CadesSigner {
                 actualFingerprint, cpf, environment, policyVersion, lpa, lpaSignature);
     }
 
+    static boolean isPolicyCurrent(Policy policy, Instant now) {
+        return !policy.notBefore.isAfter(now)
+                && policy.notAfter.isAfter(now)
+                && policy.nextUpdate.isAfter(now)
+                && !policy.nextUpdate.isAfter(now.plus(Duration.ofDays(90)))
+                && (policy.revocationDate == null || policy.revocationDate.isAfter(now));
+    }
+
     boolean ready() {
         Instant now = Instant.now();
-        if ((policy.revocationDate != null && !policy.revocationDate.isAfter(now))
-                || policy.notBefore.isAfter(now) || !policy.notAfter.isAfter(now)
-                || !policy.nextUpdate.isAfter(now)) return false;
+        if (!isPolicyCurrent(policy, now)) return false;
         try {
             signerCertificate.checkValidity();
             return true;
@@ -467,8 +471,11 @@ final class CadesSigner {
         Instant nextUpdate = asInstant(root.getObjectAt(offset + 1));
         byte[] policyHash = MessageDigest.getInstance("SHA-256").digest(policyDer);
         ASN1Sequence paRoot = ASN1Sequence.getInstance(ASN1Primitive.fromByteArray(policyDer));
-        if (paRoot.size() < 2) throw new SecurityException("CAdES policy DER structure is incomplete");
+        if (paRoot.size() != 2 || !(paRoot.getObjectAt(0).toASN1Primitive() instanceof ASN1Sequence)) {
+            throw new SecurityException("CAdES policy DER structure is incomplete or ambiguous");
+        }
         ASN1Sequence internalHash = ASN1Sequence.getInstance(paRoot.getObjectAt(1));
+        if (internalHash.size() != 2) throw new SecurityException("CAdES policy hash structure is invalid");
         String internalHashAlgorithm = ASN1ObjectIdentifier.getInstance(
                 ASN1Sequence.getInstance(internalHash.getObjectAt(0)).getObjectAt(0)).getId();
         byte[] internalPolicyHash = ASN1OctetString.getInstance(internalHash.getObjectAt(1)).getOctets();
@@ -486,19 +493,26 @@ final class CadesSigner {
             ASN1Sequence info = ASN1Sequence.getInstance(item);
             int i = 0;
             ASN1Sequence period = ASN1Sequence.getInstance(info.getObjectAt(i++));
+            if (period.size() != 2) throw new SecurityException("CAdES policy period must have start and end");
             Instant candidateStart = asInstant(period.getObjectAt(0));
-            Instant candidateEnd = period.size() > 1 ? asInstant(period.getObjectAt(1))
-                    : Instant.parse("9999-12-31T23:59:59Z");
+            Instant candidateEnd = asInstant(period.getObjectAt(1));
+            if (!candidateStart.isBefore(candidateEnd)) throw new SecurityException("CAdES policy period is inverted");
             boolean hasRevocation = info.getObjectAt(i) instanceof ASN1UTCTime
                     || info.getObjectAt(i) instanceof ASN1GeneralizedTime;
             Instant revocation = hasRevocation ? asInstant(info.getObjectAt(i++)) : null;
             String oid = ASN1ObjectIdentifier.getInstance(info.getObjectAt(i++)).getId();
             String uri = ASN1IA5String.getInstance(info.getObjectAt(i++)).getString();
+            if (info.size() != i + 1) throw new SecurityException("Unexpected fields in LPA policy entry");
             ASN1Sequence hashInfo = ASN1Sequence.getInstance(info.getObjectAt(i));
-            String hashAlgorithm = ASN1ObjectIdentifier.getInstance(
-                    ASN1Sequence.getInstance(hashInfo.getObjectAt(0)).getObjectAt(0)).getId();
+            if (hashInfo.size() != 2) throw new SecurityException("LPA policy hash structure is invalid");
+            ASN1Sequence hashAlgorithmIdentifier = ASN1Sequence.getInstance(hashInfo.getObjectAt(0));
+            if (hashAlgorithmIdentifier.size() < 1 || hashAlgorithmIdentifier.size() > 2) {
+                throw new SecurityException("LPA policy hash AlgorithmIdentifier is invalid");
+            }
+            String hashAlgorithm = ASN1ObjectIdentifier.getInstance(hashAlgorithmIdentifier.getObjectAt(0)).getId();
             byte[] publishedPolicyHash = ASN1OctetString.getInstance(hashInfo.getObjectAt(1)).getOctets();
             if (oid.equals(expectedOid)) {
+                if (found) throw new SecurityException("LPA contains duplicate entries for the configured policy OID");
                 if (!SHA256_OID.equals(hashAlgorithm)
                         || !MessageDigest.isEqual(policyHash, publishedPolicyHash)) {
                     throw new SecurityException("LPA policy DER hash or algorithm mismatch");
@@ -544,5 +558,10 @@ final class CadesSigner {
                 .withZone(ZoneOffset.UTC).format(value);
     }
     record Policy(String oid, String version, Instant notBefore, Instant notAfter,
-            Instant nextUpdate, Instant revocationDate, byte[] attributeHash, String lpaSha256) {}
+            Instant nextUpdate, Instant revocationDate, byte[] attributeHash, String lpaSha256) {
+        Policy {
+            attributeHash = attributeHash.clone();
+        }
+        @Override public byte[] attributeHash() { return attributeHash.clone(); }
+    }
 }
