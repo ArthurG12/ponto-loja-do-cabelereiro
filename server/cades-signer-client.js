@@ -110,6 +110,9 @@ export async function requestCadesDetachedSignature(content, {
   }
 
   const fingerprint = normalizeFingerprint(result.signerCertificateFingerprint);
+  if (fingerprint !== normalizeFingerprint(expectedFingerprint)) {
+    throw fail('O certificado utilizado não corresponde ao certificado autorizado do desenvolvedor.');
+  }
   if (result.policyIdentifier !== expectedPolicyIdentifier
     || result.policyVersion !== '2.4'
     || !isIsoDate(result.policyValidFrom) || !isIsoDate(result.policyValidUntil)
