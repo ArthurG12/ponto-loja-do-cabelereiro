@@ -158,6 +158,9 @@ for each row execute function public.mirror_time_mark_to_rep_ledger();
 
 -- Registra eventos que efetivamente compõem o AFD (tipos 2, 4, 5 e 6).
 -- O NSR é alocado na mesma sequência usada pelas marcações tipo 7.
+revoke all on function public.reject_rep_ledger_mutation() from public, anon, authenticated;
+revoke all on function public.mirror_time_mark_to_rep_ledger() from public, anon, authenticated;
+
 create or replace function public.append_rep_afd_event(
   p_establishment_id uuid,
   p_record_type text,
@@ -174,7 +177,7 @@ declare
   event_id uuid;
   event_time timestamptz := coalesce(p_occurred_at, clock_timestamp());
 begin
-  if p_record_type not in ('2','4','5','6') then
+  if p_record_type is null or p_record_type not in ('2','4','5','6') then
     raise exception 'Tipo de registro AFD não permitido para evento.';
   end if;
   if p_payload is null or jsonb_typeof(p_payload) <> 'object' then
