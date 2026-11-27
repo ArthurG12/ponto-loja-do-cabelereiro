@@ -1,22 +1,33 @@
 package br.com.pontofacil.repp;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public final class SignerServer {
     private static final int MAX_REQUEST_BYTES = 34_000_000;
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = new ObjectMapper(JsonFactory.builder().enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION).build());
+    private static final Set<String> REQUEST_FIELDS = Set.of("operationId", "content", "contentSha256", "format", "contentType");
     private final byte[] serviceToken;
     private final CadesSigner signer;
+    private HttpServer server;
+    private ExecutorService executor;
 
     SignerServer(String serviceToken, CadesSigner signer) {
         if (serviceToken == null || serviceToken.length() < 32) {
@@ -37,17 +48,54 @@ public final class SignerServer {
         return MessageDigest.isEqual(expectedToken, supplied);
     }
 
-    void start(String bindHost, int port) throws IOException {
+    synchronized void start(String bindHost, int port) throws IOException {
+        if (server != null) throw new IllegalStateException("Signer HTTP server is already started");
+        if (port < 1 || port > 65535) throw new IllegalArgumentException("Signer port must be between 1 and 65535");
         InetAddress bindAddress = InetAddress.getByName(bindHost);
-        HttpServer server = HttpServer.create(new InetSocketAddress(bindAddress, port), 32);
+        server = HttpServer.create(new InetSocketAddress(bindAddress, port), 32);
         server.createContext("/healthz", exchange -> respond(exchange, 200, "{\"status\":\"alive\"}"));
         server.createContext("/readyz", exchange -> {
             if (signer.ready()) respond(exchange, 200, "{\"status\":\"ready\",\"signingEnabled\":true}");
             else respond(exchange, 503, "{\"status\":\"not_ready\",\"signingEnabled\":false}");
         });
         server.createContext("/v1/sign-detached", this::signDetached);
-        server.setExecutor(java.util.concurrent.Executors.newFixedThreadPool(4));
+        executor = Executors.newFixedThreadPool(4, task -> {
+            Thread thread = new Thread(task, "rep-p-cades-http");
+            thread.setDaemon(false);
+            return thread;
+        });
+        server.setExecutor(executor);
         server.start();
+    }
+
+    synchronized void stop() {
+        if (server != null) {
+            server.stop(1);
+            server = null;
+        }
+        if (executor != null) {
+            executor.shutdown();
+            try {
+                if (!executor.awaitTermination(5, TimeUnit.SECONDS)) executor.shutdownNow();
+            } catch (InterruptedException interrupted) {
+                executor.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+            executor = null;
+        }
+    }
+
+    static JsonNode parseRequest(byte[] body) throws IOException {
+        try (JsonParser parser = JSON.getFactory().createParser(body)) {
+            JsonNode request = JSON.readTree(parser);
+            if (request == null || !request.isObject() || parser.nextToken() != null) {
+                throw new IOException("Request must contain exactly one JSON object");
+            }
+            Set<String> fields = new java.util.HashSet<>();
+            request.fieldNames().forEachRemaining(fields::add);
+            if (!REQUEST_FIELDS.equals(fields)) throw new IOException("Unexpected or missing request fields");
+            return request;
+        }
     }
 
     private void signDetached(HttpExchange exchange) throws IOException {
@@ -59,13 +107,34 @@ public final class SignerServer {
             respond(exchange, 401, "{\"error\":\"unauthorized\"}");
             return;
         }
-        byte[] body = exchange.getRequestBody().readNBytes(MAX_REQUEST_BYTES + 1);
+        String requestContentType = exchange.getRequestHeaders().getFirst("Content-Type");
+        if (requestContentType == null
+                || !requestContentType.toLowerCase(Locale.ROOT).matches("^application/json(?:\\s*;.*)?$")) {
+            respond(exchange, 415, "{\"error\":\"content_type_must_be_json\"}");
+            return;
+        }
+        String contentLength = exchange.getRequestHeaders().getFirst("Content-Length");
+        if (contentLength != null) {
+            try {
+                if (Long.parseLong(contentLength) > MAX_REQUEST_BYTES) {
+                    respond(exchange, 413, "{\"error\":\"request_too_large\"}");
+                    return;
+                }
+            } catch (NumberFormatException invalidLength) {
+                respond(exchange, 400, "{\"error\":\"invalid_content_length\"}");
+                return;
+            }
+        }
+        byte[] body;
+        try (InputStream input = exchange.getRequestBody()) {
+            body = input.readNBytes(MAX_REQUEST_BYTES + 1);
+        }
         if (body.length > MAX_REQUEST_BYTES) {
             respond(exchange, 413, "{\"error\":\"request_too_large\"}");
             return;
         }
         try {
-            JsonNode request = JSON.readTree(body);
+            JsonNode request = parseRequest(body);
             String operationId = requiredText(request, "operationId");
             String contentBase64 = requiredText(request, "content");
             String contentSha256 = requiredText(request, "contentSha256");
@@ -112,6 +181,8 @@ public final class SignerServer {
         int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "8787"));
         String bindHost = System.getenv().getOrDefault("REP_CADES_BIND_HOST", "127.0.0.1");
         CadesSigner signer = CadesSigner.fromEnvironment();
-        new SignerServer(token, signer).start(bindHost, port);
+        SignerServer application = new SignerServer(token, signer);
+        application.start(bindHost, port);
+        Runtime.getRuntime().addShutdownHook(new Thread(application::stop, "rep-p-cades-shutdown"));
     }
 }
