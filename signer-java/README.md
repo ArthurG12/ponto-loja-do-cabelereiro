@@ -56,7 +56,7 @@ A porta não deve ser publicada na Internet. Use rede privada e TLS/mTLS na fron
 
 ## Testes e limites ainda abertos
 
-- CI Maven/JDK 21 cobre **20 testes**, compilação, pacote, controles de token, parsing ASN.1 da LPA/PA e recomputação de `SignPolicyHash`, limites de vigência de 90 dias, rejeição de JSON ambíguo/aninhado, capacidade Base64 para AFD de 25 MB, algoritmos implementados da AD-RB 2.4 (RSA mínimo 2048 e ECDSA mínimo 256; EdDSA ainda não suportado), integração HTTP/backpressure e geração/verificação CMS detached com chave RSA efêmera de teste.
+- CI Maven/JDK 21 cobre **21 testes**, compilação, pacote, controles de token, parsing ASN.1 da LPA/PA e recomputação de `SignPolicyHash`, limites de vigência de 90 dias, rejeição de JSON ambíguo/aninhado, capacidade Base64 para AFD de 25 MB, algoritmos implementados da AD-RB 2.4 (RSA mínimo 2048 e ECDSA mínimo 256; EdDSA ainda não suportado), integração HTTP/backpressure e geração/verificação CMS detached com chave RSA efêmera de teste.
 - Vetores sintéticos não demonstram que os artefatos oficiais atuais, a cadeia ICP-Brasil ou o certificado real do desenvolvedor serão aceitos.
 - Ainda são necessários testes de integração com LPA CAdES oficial assinada pelo ITI, trust anchors oficiais pinados, respostas OCSP/CRL reais, certificado ICP-Brasil válido do desenvolvedor e verificação por uma segunda implementação independente.
 - A validação da revogação depende de conectividade aos respondedores OCSP/CRL; indisponibilidade ou resultado inconclusivo bloqueia. O serviço configura timeouts de conexão/leitura de 10 segundos para OCSP, LCR e recuperação de certificados, sem opção `SOFT_FAIL`.
