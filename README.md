@@ -111,3 +111,10 @@ O MTE exige assinatura CAdES destacada em .p7s para o AFD e determina que ela se
 A lista oficial do ITI indica a LPA CAdES vigente a partir de 03/10/2026, com ciclo até 01/01/2027. A implementação do assinador deverá consumir a política vigente, validar a cadeia ICP-Brasil e conferir a assinatura destacada contra os bytes exatos do AFD. A chave privada/certificado deve permanecer em ambiente privado de assinatura, nunca no navegador ou no repositório.
 
 A arquitetura proposta para o serviço privado de assinatura CAdES ICP-Brasil, incluindo proteção da chave, contrato interno e critérios de teste/liberação, está em [docs/rep-p-cades-signing-architecture.md](docs/rep-p-cades-signing-architecture.md). O documento não ativa a assinatura: o endpoint continua bloqueado até implementação e validação real.
+
+
+### Cliente interno do assinador CAdES (ainda não conectado à exportação)
+
+O módulo `server/cades-signer-client.js` implementa o contrato de chamada HTTPS para um assinador privado: envia os bytes exatos do AFD, vincula a resposta ao SHA-256, exige fingerprint previamente autorizado do certificado do desenvolvedor, OID de política e vigência da LPA, ambiente de produção e confirmação explícita de validação detached, assinatura, conteúdo, certificado, cadeia, revogação e política. O módulo rejeita falhas, timeout, respostas incompletas e divergências. Os testes estão em `server/cades-signer-client.test.js` e são executados por `npm run test:cades`.
+
+**Limite deliberado:** este módulo valida o contrato/atestado retornado pelo serviço, mas não implementa CMS/CAdES nem substitui verificação criptográfica independente. O serviço Java ainda precisa ser construído, usar a política ICP-Brasil vigente e realizar efetivamente todas as verificações. O cliente ainda não está conectado à rota pública AFD; configurar variáveis não libera exportação. Não inserir token, certificado ou chave no repositório.
