@@ -25,7 +25,7 @@ function normalizeFingerprint(value) {
 }
 
 function isIsoDate(value) {
-  if (typeof value !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$/.test(value)) return false;
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\\.\d{1,3})?Z$/.test(value)) return false;
   return Number.isFinite(Date.parse(value));
 }
 
@@ -103,7 +103,7 @@ export async function requestCadesDetachedSignature(content, {
   if (fingerprint !== normalizeFingerprint(expectedFingerprint)) {
     throw fail('O certificado utilizado não corresponde ao certificado autorizado do desenvolvedor.');
   }
-  if (!/^\\d+(?:\\.\\d+){2,}$/.test(String(result.policyIdentifier || ''))
+  if (!/^\d+(?:\\.\d+){2,}$/.test(String(result.policyIdentifier || ''))
     || !isIsoDate(result.lpaValidFrom) || !isIsoDate(result.lpaValidUntil)
     || Date.parse(result.lpaValidFrom) > now.getTime()
     || Date.parse(result.lpaValidUntil) < now.getTime()) {
