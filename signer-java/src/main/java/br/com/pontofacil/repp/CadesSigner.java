@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.*;
 import java.security.cert.*;
+import java.security.interfaces.ECKey;
 import java.security.interfaces.RSAKey;
 import java.time.Duration;
 import java.time.Instant;
@@ -206,13 +207,19 @@ final class CadesSigner implements CadesSigningService {
 
 
     static String signatureAlgorithmFor(PrivateKey key) {
-        if (!(key instanceof RSAKey rsa)) {
-            throw new SecurityException("ICP-Brasil CAdES AD-RB 2.4 requires an RSA signing key");
+        if (key instanceof RSAKey rsa) {
+            if (rsa.getModulus().bitLength() < 2048) {
+                throw new SecurityException("ICP-Brasil CAdES AD-RB 2.4 requires RSA keys of at least 2048 bits");
+            }
+            return "SHA256withRSA";
         }
-        if (rsa.getModulus().bitLength() < 2048) {
-            throw new SecurityException("ICP-Brasil CAdES AD-RB 2.4 requires RSA keys of at least 2048 bits");
+        if (key instanceof ECKey ec) {
+            if (ec.getParams() == null || ec.getParams().getCurve().getField().getFieldSize() < 256) {
+                throw new SecurityException("ICP-Brasil CAdES AD-RB 2.4 requires ECDSA keys of at least 256 bits");
+            }
+            return "SHA256withECDSA";
         }
-        return "SHA256withRSA";
+        throw new SecurityException("Unsupported CAdES AD-RB 2.4 key algorithm; RSA and ECDSA are supported");
     }
 
     static void verifyKeyPair(PrivateKey privateKey, X509Certificate certificate, String algorithm) throws Exception {
