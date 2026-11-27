@@ -77,6 +77,8 @@ A função de registro valida o PIN no banco, controla a sequência prevista, al
 
 As migrations em `supabase/migrations/` devem ser aplicadas em ordem, primeiro em um projeto de teste e após backup. Não execute em produção sem validar o schema, os usuários/estabelecimento e os registros existentes.
 
+A análise detalhada dos requisitos e das lacunas identificadas nos leiautes oficiais de 31/07/2026 está em [docs/rep-p-compliance-gap-analysis.md](docs/rep-p-compliance-gap-analysis.md). Ela deve ser tratada como checklist de engenharia, não como declaração de conformidade.
+
 ## Jornadas previstas
 
 - Jornada A: segunda a sexta 08:00–12:00 e 13:00–17:00; sábado 08:00–12:00.
