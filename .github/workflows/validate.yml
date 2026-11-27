@@ -28,10 +28,12 @@ jobs:
           node --check server/rep-p.js
           node --check server/afd-v004.js
           node --check server/afd-v004.test.js
+          node --check server/cades-signer-client.js
+          node --check server/cades-signer-client.test.js
           node --check server/rep-p-server.js
           node --check scripts/dev.mjs
       - name: Test isolated REP-P HTTP API
-        run: npm run test:rep-p && npm run test:afd
+        run: npm run test:rep-p && npm run test:afd && npm run test:cades
       - name: Build frontend
         run: npm run build
 
