@@ -21,6 +21,7 @@ import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 public final class SignerServer {
@@ -37,6 +38,7 @@ public final class SignerServer {
     private static final Set<String> REQUEST_FIELDS = Set.of("operationId", "content", "contentSha256", "format", "contentType");
     private final byte[] serviceToken;
     private final CadesSigner signer;
+    private final Semaphore signingPermit = new Semaphore(1);
     private HttpServer server;
     private ExecutorService executor;
 
@@ -182,12 +184,21 @@ public final class SignerServer {
             return;
         }
 
+        if (!signingPermit.tryAcquire()) {
+            exchange.getResponseHeaders().set("Retry-After", "2");
+            respond(exchange, 503, "{\"error\":\"signer_busy\",\"signingEnabled\":false}");
+            return;
+        }
         try {
             var result = signer.sign(operationId, content, contentSha256);
             respond(exchange, 200, JSON.writeValueAsString(result));
         } catch (Exception rejected) {
             // Do not disclose certificate, key-store, policy, or validation details to callers.
+            System.err.println("CAdES signing rejected for operation " + operationId
+                    + " (" + rejected.getClass().getSimpleName() + ")");
             respond(exchange, 503, "{\"error\":\"cryptographic_validation_failed\",\"signingEnabled\":false}");
+        } finally {
+            signingPermit.release();
         }
     }
 
