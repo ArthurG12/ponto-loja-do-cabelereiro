@@ -1,5 +1,5 @@
 -- Teste de integração das migrations REP-P em PostgreSQL limpo.
--- Executado pelo GitHub Actions após schema.sql e migrations 001–010.
+-- Executado pelo GitHub Actions após schema.sql e migrations 001–012.
 
 do $$
 declare
@@ -30,6 +30,32 @@ begin
     raise exception 'Trigger não associou o funcionário ao estabelecimento.';
   end if;
 
+  if not exists (
+    select 1 from public.rep_ledger
+    where establishment_id = establishment_uuid
+      and nsr = 1 and record_type = '5'
+      and record_payload->>'operation' = 'I'
+      and record_payload->>'cpf' = '52998224725'
+      and record_payload->>'full_name' = 'Funcionário de teste'
+  ) then
+    raise exception 'Inclusão de empregado não gerou AFD tipo 5 com snapshot cadastral.';
+  end if;
+
+  update public.employees
+     set full_name = 'Funcionário de teste atualizado', schedule_code = 'B'
+   where id = employee_uuid;
+
+  if not exists (
+    select 1 from public.rep_ledger
+    where establishment_id = establishment_uuid
+      and nsr = 2 and record_type = '5'
+      and record_payload->>'operation' = 'A'
+      and record_payload->>'full_name' = 'Funcionário de teste atualizado'
+      and record_payload->>'schedule_code' = 'B'
+  ) then
+    raise exception 'Alteração de empregado não gerou AFD tipo 5.';
+  end if;
+
   result := public.register_time_mark(employee_uuid, '9999', 'entrada', gen_random_uuid(), 'ci-test-collector', '02');
   if result->>'ok' <> 'false' then raise exception 'PIN incorreto deveria ser rejeitado.'; end if;
 
@@ -40,7 +66,7 @@ begin
   if result->>'ok' <> 'true' then raise exception 'Marcação válida não foi registrada: %', result; end if;
 
   first_mark := result->'punch';
-  if (first_mark->>'nsr')::bigint <> 1 then raise exception 'NSR inicial deveria ser 1.'; end if;
+  if (first_mark->>'nsr')::bigint <> 3 then raise exception 'NSR da marcação deveria seguir os dois eventos cadastrais.'; end if;
   if length(first_mark->>'record_hash') <> 64 then raise exception 'Hash SHA-256 interno inválido.'; end if;
   if first_mark->>'hash_version' <> 'afd-v004-fixed-concat-candidate-v1' then raise exception 'Versão candidata do hash AFD não identificada.'; end if;
   if first_mark->>'employee_cpf_snapshot' <> '52998224725' then raise exception 'Snapshot CPF ausente.'; end if;
@@ -95,7 +121,7 @@ begin
   end if;
 
   select count(*) into ledger_count from public.rep_ledger
-   where establishment_id = establishment_uuid and nsr = 1 and record_type = '7'
+   where establishment_id = establishment_uuid and nsr = 3 and record_type = '7'
      and source_table = 'time_marks' and source_id = (first_mark->>'id')::uuid;
   if ledger_count <> 1 then raise exception 'Marcação não foi espelhada no livro AFD.'; end if;
 
@@ -103,12 +129,12 @@ begin
     establishment_uuid, '6', jsonb_build_object('event_code', '07', 'description', 'CI test'),
     clock_timestamp(), null
   );
-  if event_result->>'ok' <> 'true' or (event_result->>'nsr')::bigint <> 2 then
+  if event_result->>'ok' <> 'true' or (event_result->>'nsr')::bigint <> 4 then
     raise exception 'Evento AFD não consumiu NSR compartilhado: %', event_result;
   end if;
 
   select count(*) into ledger_count from public.rep_ledger where establishment_id = establishment_uuid;
-  if ledger_count <> 2 then raise exception 'Livro AFD deveria conter dois registros.'; end if;
+  if ledger_count <> 4 then raise exception 'Livro AFD deveria conter quatro registros após inclusão, alteração, marcação e evento técnico.'; end if;
 
   begin
     update public.rep_ledger set record_payload = '{}'::jsonb where establishment_id = establishment_uuid and nsr = 1;
@@ -122,6 +148,17 @@ begin
   exception when raise_exception then
     if sqlerrm = 'Livro AFD permitiu DELETE.' then raise; end if;
   end;
+
+  update public.employees set active = false where id = employee_uuid;
+  if not exists (
+    select 1 from public.rep_ledger
+    where establishment_id = establishment_uuid
+      and nsr = 5 and record_type = '5'
+      and record_payload->>'operation' = 'E'
+      and record_payload->>'active' = 'false'
+  ) then
+    raise exception 'Desativação de empregado não gerou evento AFD tipo 5.';
+  end if;
 
   if public.rep_afd_format_dh('2026-01-02T13:03:42+00'::timestamptz, 'America/Sao_Paulo') <> '2026-01-02T10:03:00-0300' then
     raise exception 'Formatação DH AFD incorreta.';
