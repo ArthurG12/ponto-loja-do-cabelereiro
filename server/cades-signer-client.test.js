@@ -6,7 +6,9 @@ import { requestCadesDetachedSignature } from './cades-signer-client.js';
 const content = Buffer.from('AFD v004 bytes\\r\\n', 'latin1');
 const fingerprint = 'A'.repeat(64);
 const validFrom = '2026-10-03T00:00:00Z';
-const validUntil = '2027-01-01T00:00:00Z';
+const policyValidUntil = '2037-10-22T00:00:00Z';
+const lpaNextUpdate = '2027-01-01T00:00:00Z';
+const policyIdentifier = '2.16.76.1.7.1.1.2.4';
 
 function validResponse(request) {
   return {
@@ -14,9 +16,12 @@ function validResponse(request) {
     contentSha256: createHash('sha256').update(content).digest('hex'),
     signature: Buffer.from('detached-cms-test').toString('base64'),
     signerCertificateFingerprint: fingerprint,
-    policyIdentifier: '2.16.76.1.7.1.1.1',
-    lpaValidFrom: validFrom,
-    lpaValidUntil: validUntil,
+    policyIdentifier,
+    policyVersion: '2.4',
+    policyValidFrom: validFrom,
+    policyValidUntil,
+    lpaNextUpdate,
+    lpaSha256: 'C'.repeat(64),
     environment: 'production',
     validation: {
       detached: true,
@@ -26,6 +31,14 @@ function validResponse(request) {
       chainValid: true,
       revocationChecked: true,
       policyValid: true,
+      policyNotRevoked: true,
+      signingCertificateAttributeValid: true,
+      messageDigestValid: true,
+      contentTypeValid: true,
+      lpaSignatureValid: true,
+      lpaIntegrityValid: true,
+      lpaFreshnessChecked: true,
+      developerIdentityValid: true,
     },
   };
 }
@@ -35,6 +48,7 @@ function config(fetchImpl) {
     endpoint: 'https://cades.internal.example',
     serviceToken: 'private-service-token',
     expectedFingerprint: fingerprint,
+    expectedPolicyIdentifier: policyIdentifier,
     fetchImpl,
     now: new Date('2026-11-27T12:00:00Z'),
   };
@@ -95,10 +109,10 @@ test('rejects incomplete cryptographic, chain or revocation validation', async (
   })), /não foi validada integralmente/i);
 });
 
-test('rejects expired or malformed LPA metadata', async () => {
+test('rejects expired or malformed policy/LPA metadata', async () => {
   await assert.rejects(requestCadesDetachedSignature(content, config(async (_url, options) => {
     const body = JSON.parse(options.body);
-    return new Response(JSON.stringify({ ...validResponse(body), lpaValidUntil: '2026-01-01T00:00:00Z' }), { status: 200 });
+    return new Response(JSON.stringify({ ...validResponse(body), lpaNextUpdate: '2026-01-01T00:00:00Z' }), { status: 200 });
   })), /fora da vigência/i);
 });
 
