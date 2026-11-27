@@ -90,4 +90,14 @@ class CadesSignerPolicyTest {
         assertTrue(CadesSigner.isPolicyCurrent(valid, now));
     }
 
+    @Test void identifiesOnlyAdRb24TrustRootsV5AndV12() {
+        assertEquals("v5", CadesSigner.trustAnchorVersion(
+                "CN=Autoridade Certificadora Raiz Brasileira v5,O=ICP-Brasil,C=BR"));
+        assertEquals("v12", CadesSigner.trustAnchorVersion(
+                "CN=Autoridade Certificadora Raiz Brasileira v12,O=ICP-Brasil,C=BR"));
+        assertNull(CadesSigner.trustAnchorVersion(
+                "CN=Autoridade Certificadora Raiz Brasileira v2,O=ICP-Brasil,C=BR"));
+        assertNull(CadesSigner.trustAnchorVersion(null));
+    }
+
 }
