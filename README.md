@@ -52,6 +52,26 @@ O site público é o GitHub Pages: https://arthurg12.github.io/ponto-loja-do-cab
 
 Cada push na branch `main` gera o build e publica. O endereço do Supabase e a chave pública ficam em `.env.production`, porque essa chave é feita para ir no navegador. A chave `service_role` não entra no repositório.
 
+## Integração REP-P em desenvolvimento
+
+A branch `feat/rep-p-arp` contém migrations aditivas para a ARP e um endpoint de registro protegido no backend. Quando `VITE_REP_API_URL` estiver configurada no build do frontend, as novas marcações online são enviadas para `POST /api/rep-p/register`; sem essa variável, o sistema mantém o fluxo Supabase legado. **O fluxo legado não deve ser tratado como REP-P.**
+
+O backend precisa receber, em variáveis privadas do ambiente de execução:
+
+- `SUPABASE_URL`: URL do projeto Supabase.
+- `SUPABASE_SERVICE_ROLE_KEY`: chave service_role, exclusivamente no servidor.
+- `REP_COLLECTOR_ID`: identificador estável do coletor/tablet.
+- `REP_ALLOWED_ORIGIN`: origem exata do frontend, por exemplo `https://arthurg12.github.io`.
+- `HOST` e `PORT`: endereço e porta de escuta do serviço.
+
+No build do frontend, configure `VITE_REP_API_URL` com a URL pública do backend. A chave `service_role` jamais pode ser colocada em `.env.production`, variável `VITE_*`, código do navegador ou repositório.
+
+A função de registro valida o PIN no banco, controla a sequência prevista, aloca NSR por estabelecimento em transação, registra horário do PostgreSQL e encadeia os hashes SHA-256. A gravação original é feita em `time_marks`; a tabela legada `punches` permanece separada nesta fase.
+
+**Limitação importante:** usar `clock_timestamp()` não comprova, por si só, sincronização nem rastreabilidade da Hora Legal Brasileira (HLB). Antes de qualquer uso como REP-P, o servidor e o banco precisam estar em infraestrutura com sincronização HLB documentada e monitorada, variação dentro do limite normativo, controles operacionais e testes. Ainda não foram implementados assinatura digital ICP-Brasil, comprovante legal, AFD/AEJ ou PTRP. Portanto, esta integração é uma etapa técnica de desenvolvimento, não uma declaração de conformidade legal.
+
+As migrations em `supabase/migrations/` devem ser aplicadas em ordem, primeiro em um projeto de teste e após backup. Não execute em produção sem validar o schema, os usuários/estabelecimento e os registros existentes.
+
 ## Jornadas previstas
 
 - Jornada A: segunda a sexta 08:00–12:00 e 13:00–17:00; sábado 08:00–12:00.
