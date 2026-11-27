@@ -52,6 +52,7 @@ class CadesSignerCmsTest {
         Map<String, Object> response = signer.signInternal("123e4567-e89b-12d3-a456-426614174000", content, digest);
         byte[] signature = Base64.getDecoder().decode((String) response.get("signature"));
         CMSSignedData cms = new CMSSignedData(new CMSProcessableByteArray(content), signature);
+        assertNull(new CMSSignedData(signature).getSignedContent());
         assertNotNull(cms.getSignedContent());
         assertEquals(1, cms.getSignerInfos().size());
         SignerInformation info = cms.getSignerInfos().getSigners().iterator().next();
