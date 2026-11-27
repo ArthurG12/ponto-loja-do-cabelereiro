@@ -20,7 +20,9 @@ import org.bouncycastle.asn1.cms.CMSAttributes;
 import org.bouncycastle.asn1.cms.AttributeTable;
 import org.bouncycastle.asn1.cms.CMSObjectIdentifiers;
 import org.bouncycastle.asn1.cms.Attribute;
+import org.bouncycastle.asn1.ess.ESSCertID;
 import org.bouncycastle.asn1.ess.ESSCertIDv2;
+import org.bouncycastle.asn1.ess.SigningCertificate;
 import org.bouncycastle.asn1.ess.SigningCertificateV2;
 import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
@@ -300,6 +302,44 @@ final class CadesSigner {
         }
     }
 
+    private static boolean singleAttribute(AttributeTable table, ASN1ObjectIdentifier oid) {
+        Attribute attribute = table.get(oid);
+        return attribute != null && attribute.getAttrValues().size() == 1;
+    }
+
+    private static void verifySigningCertificateAttribute(AttributeTable table, X509Certificate certificate)
+            throws Exception {
+        Attribute v2 = table.get(SIGNING_CERT_V2);
+        byte[] expected;
+        byte[] actual;
+        if (v2 != null) {
+            if (v2.getAttrValues().size() != 1) throw new SecurityException("Ambiguous signingCertificateV2");
+            SigningCertificateV2 signing = SigningCertificateV2.getInstance(v2.getAttrValues().getObjectAt(0));
+            if (signing.getCerts().length != 1) throw new SecurityException("LPA signingCertificateV2 must reference only its signer");
+            String oid = signing.getCerts()[0].getHashAlgorithm().getAlgorithm().getId();
+            String digest = switch (oid) {
+                case "1.3.14.3.2.26" -> "SHA-1";
+                case "2.16.840.1.101.3.4.2.1" -> "SHA-256";
+                case "2.16.840.1.101.3.4.2.2" -> "SHA-384";
+                case "2.16.840.1.101.3.4.2.3" -> "SHA-512";
+                default -> throw new SecurityException("Unsupported LPA signingCertificateV2 digest");
+            };
+            expected = signing.getCerts()[0].getCertHash();
+            actual = MessageDigest.getInstance(digest).digest(certificate.getEncoded());
+        } else {
+            Attribute v1 = table.get(PKCSObjectIdentifiers.id_aa_signingCertificate);
+            if (v1 == null || v1.getAttrValues().size() != 1) throw new SecurityException("Missing signingCertificate");
+            SigningCertificate signing = SigningCertificate.getInstance(v1.getAttrValues().getObjectAt(0));
+            ESSCertID[] certs = signing.getCerts();
+            if (certs.length != 1) throw new SecurityException("LPA signingCertificate must reference only its signer");
+            expected = certs[0].getCertHash();
+            actual = MessageDigest.getInstance("SHA-1").digest(certificate.getEncoded());
+        }
+        if (!MessageDigest.isEqual(expected, actual)) {
+            throw new SecurityException("LPA signingCertificate attribute does not identify the signer");
+        }
+    }
+
     private static Attribute requireAttribute(AttributeTable table, ASN1ObjectIdentifier oid) {
         Attribute attribute = table.get(oid);
         if (attribute == null || attribute.getAttrValues().size() != 1) {
@@ -323,13 +363,14 @@ final class CadesSigner {
         if (matches.size() != 1) throw new SecurityException("LPA signer certificate is missing or ambiguous");
         X509Certificate cert = new JcaX509CertificateConverter().setProvider("BC").getCertificate(matches.iterator().next());
         AttributeTable signed = signer.getSignedAttributes();
-        if (signed == null || signed.get(CMSAttributes.contentType) == null
-                || signed.get(CMSAttributes.messageDigest) == null
-                || (signed.get(SIGNING_CERT_V2) == null
-                    && signed.get(PKCSObjectIdentifiers.id_aa_signingCertificate) == null)
-                || signed.get(SIG_POLICY_ID) == null) {
+        if (signed == null || !singleAttribute(signed, CMSAttributes.contentType)
+                || !singleAttribute(signed, CMSAttributes.messageDigest)
+                || (!singleAttribute(signed, SIGNING_CERT_V2)
+                    && !singleAttribute(signed, PKCSObjectIdentifiers.id_aa_signingCertificate))
+                || !singleAttribute(signed, SIG_POLICY_ID)) {
             throw new SecurityException("LPA CMS signer lacks mandatory ICP-Brasil CAdES attributes");
         }
+        verifySigningCertificateAttribute(signed, cert);
         ASN1ObjectIdentifier lpaContentType = ASN1ObjectIdentifier.getInstance(
                 signed.get(CMSAttributes.contentType).getAttrValues().getObjectAt(0));
         if (!CMSObjectIdentifiers.data.equals(lpaContentType)) {
