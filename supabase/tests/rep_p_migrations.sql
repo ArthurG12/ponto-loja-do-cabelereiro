@@ -1,5 +1,5 @@
 -- Teste de integração das migrations REP-P em PostgreSQL limpo.
--- Executado pelo GitHub Actions após schema.sql e migrations 001–014.
+-- Executado pelo GitHub Actions após schema.sql e migrations 001–015.
 
 do $$
 declare
@@ -249,6 +249,40 @@ begin
     raise exception 'Tentativa inválida alterou o livro AFD.';
   end if;
 
+  -- Tipo 6: somente transições observadas do ciclo de vida do backend.
+  event_result := public.record_rep_service_event(establishment_uuid, '07');
+  if event_result->>'ok' <> 'true' or (event_result->>'nsr')::bigint <> 8 then
+    raise exception 'Disponibilidade do serviço não consumiu o NSR compartilhado: %', event_result;
+  end if;
+  if not exists (
+    select 1 from public.rep_ledger where establishment_id = establishment_uuid
+      and nsr = 8 and record_type = '6' and record_payload->>'event_code' = '07'
+      and length(record_payload->>'recorded_at') = 24
+      and record_payload->>'event_source' = 'rep-p-api-lifecycle'
+  ) then raise exception 'Evento AFD tipo 6 de disponibilidade incompleto.'; end if;
+
+  event_result := public.record_rep_service_event(establishment_uuid, '08');
+  if event_result->>'ok' <> 'true' or (event_result->>'nsr')::bigint <> 9 then
+    raise exception 'Indisponibilidade do serviço não consumiu o NSR compartilhado: %', event_result;
+  end if;
+  if not exists (
+    select 1 from public.rep_ledger where establishment_id = establishment_uuid
+      and nsr = 9 and record_type = '6' and record_payload->>'event_code' = '08'
+      and length(record_payload->>'recorded_at') = 24
+  ) then raise exception 'Evento AFD tipo 6 de indisponibilidade incompleto.'; end if;
+
+  begin
+    perform public.record_rep_service_event(establishment_uuid, '99');
+    raise exception 'Código de evento técnico inválido deveria ser rejeitado.';
+  exception when raise_exception then
+    if sqlerrm = 'Código de evento técnico inválido deveria ser rejeitado.' then raise; end if;
+    if sqlerrm not like '%use 07 ou 08%' then raise; end if;
+  end;
+
+  if (select count(*) from public.rep_ledger where establishment_id = establishment_uuid) <> 9 then
+    raise exception 'Eventos de serviço inválidos alteraram o livro AFD.';
+  end if;
+
   if public.rep_afd_format_dh('2026-01-02T13:03:42+00'::timestamptz, 'America/Sao_Paulo') <> '2026-01-02T10:03:00-0300' then
     raise exception 'Formatação DH AFD incorreta.';
   end if;
@@ -284,8 +318,14 @@ begin
      or has_function_privilege('authenticated', 'public.admin_save_employee(uuid,text,text,text,boolean)', 'EXECUTE')
      or has_function_privilege('anon', 'public.admin_save_establishment(uuid,text,text,text,text,text)', 'EXECUTE')
      or has_function_privilege('anon', 'public.admin_set_responsible_cpf(text)', 'EXECUTE')
-     or has_function_privilege('anon', 'public.admin_adjust_rep_clock(uuid,timestamptz,timestamptz)', 'EXECUTE') then
+     or has_function_privilege('anon', 'public.admin_adjust_rep_clock(uuid,timestamptz,timestamptz)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.record_rep_service_event(uuid,text)', 'EXECUTE')
+     or has_function_privilege('authenticated', 'public.record_rep_service_event(uuid,text)', 'EXECUTE') then
     raise exception 'RPC legada ou função interna REP-P executável por papel não confiável.';
+  end if;
+
+  if not has_function_privilege('service_role', 'public.record_rep_service_event(uuid,text)', 'EXECUTE') then
+    raise exception 'Backend perdeu acesso à RPC de eventos de disponibilidade.';
   end if;
 
   if not has_function_privilege('authenticated', 'public.admin_adjust_rep_clock(uuid,timestamptz,timestamptz)', 'EXECUTE') then
