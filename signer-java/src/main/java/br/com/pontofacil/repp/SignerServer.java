@@ -37,12 +37,12 @@ public final class SignerServer {
             .build());
     private static final Set<String> REQUEST_FIELDS = Set.of("operationId", "content", "contentSha256", "format", "contentType");
     private final byte[] serviceToken;
-    private final CadesSigner signer;
+    private final CadesSigningService signer;
     private final Semaphore signingPermit = new Semaphore(1);
     private HttpServer server;
     private ExecutorService executor;
 
-    SignerServer(String serviceToken, CadesSigner signer) {
+    SignerServer(String serviceToken, CadesSigningService signer) {
         if (serviceToken == null || serviceToken.length() < 32) {
             throw new IllegalArgumentException("REP_CADES_SERVICE_TOKEN must contain at least 32 characters");
         }
@@ -63,7 +63,7 @@ public final class SignerServer {
 
     synchronized void start(String bindHost, int port) throws IOException {
         if (server != null) throw new IllegalStateException("Signer HTTP server is already started");
-        if (port < 1 || port > 65535) throw new IllegalArgumentException("Signer port must be between 1 and 65535");
+        if (port < 0 || port > 65535) throw new IllegalArgumentException("Signer port must be between 0 and 65535");
         InetAddress bindAddress = InetAddress.getByName(bindHost);
         server = HttpServer.create(new InetSocketAddress(bindAddress, port), 32);
         server.createContext("/healthz", exchange -> respond(exchange, 200, "{\"status\":\"alive\"}"));
@@ -80,6 +80,11 @@ public final class SignerServer {
         }, new ThreadPoolExecutor.CallerRunsPolicy());
         server.setExecutor(executor);
         server.start();
+    }
+
+    synchronized int port() {
+        if (server == null) throw new IllegalStateException("Signer HTTP server is not started");
+        return server.getAddress().getPort();
     }
 
     synchronized void stop() {
@@ -222,6 +227,7 @@ public final class SignerServer {
     public static void main(String[] args) throws Exception {
         String token = System.getenv("REP_CADES_SERVICE_TOKEN");
         int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "8787"));
+        if (port < 1 || port > 65535) throw new IllegalArgumentException("PORT must be between 1 and 65535");
         String bindHost = System.getenv().getOrDefault("REP_CADES_BIND_HOST", "127.0.0.1");
         CadesSigner signer = CadesSigner.fromEnvironment();
         SignerServer application = new SignerServer(token, signer);
