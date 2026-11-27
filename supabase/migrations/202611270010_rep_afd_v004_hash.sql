@@ -48,7 +48,7 @@ set search_path = public, pg_catalog
 as $input$
 begin
   if p_nsr is null or p_nsr < 1 or p_nsr > 999999999 then raise exception 'NSR fora do intervalo AFD.'; end if;
-  if p_cpf is null or p_cpf !~ '^[0-9]{11}
+  if p_cpf is null or length(p_cpf) <> 11 or p_cpf ~ '[^0-9]' or not public.rep_is_valid_cpf(p_cpf) then
     raise exception 'CPF inválido para o hash AFD.';
   end if;
   if p_collector_type is null or p_collector_type not in ('01','02','03','04','05') then
@@ -57,7 +57,7 @@ begin
   if p_marked_at is null or p_recorded_at is null or p_timezone is null or p_is_offline is null then
     raise exception 'Campos de data, fuso ou modo da marcação são obrigatórios.';
   end if;
-  if p_previous_hash is not null and p_previous_hash !~ '^[0-9a-f]{64}
+  if p_previous_hash is not null and (length(p_previous_hash) <> 64 or p_previous_hash ~ '[^0-9a-f]') then
     raise exception 'Hash anterior inválido.';
   end if;
 
@@ -333,13 +333,12 @@ $mirror$;
 revoke all on function public.mirror_time_mark_to_rep_ledger() from public, anon, authenticated;
 
 commit;
- or not public.rep_is_valid_cpf(p_cpf) then
     raise exception 'CPF inválido para o hash AFD.';
   end if;
   if p_collector_type not in ('01','02','03','04','05') then
     raise exception 'Tipo de coletor inválido para o hash AFD.';
   end if;
-  if p_previous_hash is not null and p_previous_hash !~ '^[0-9a-f]{64}$' then
+  if p_previous_hash is not null and (length(p_previous_hash) <> 64 or p_previous_hash ~ '[^0-9a-f]') then
     raise exception 'Hash anterior inválido.';
   end if;
 
@@ -891,13 +890,12 @@ $mirror$;
 revoke all on function public.mirror_time_mark_to_rep_ledger() from public, anon, authenticated;
 
 commit;
- or not public.rep_is_valid_cpf(p_cpf) then
     raise exception 'CPF inválido para o hash AFD.';
   end if;
   if p_collector_type not in ('01','02','03','04','05') then
     raise exception 'Tipo de coletor inválido para o hash AFD.';
   end if;
-  if p_previous_hash is not null and p_previous_hash !~ '^[0-9a-f]{64}$' then
+  if p_previous_hash is not null and (length(p_previous_hash) <> 64 or p_previous_hash ~ '[^0-9a-f]') then
     raise exception 'Hash anterior inválido.';
   end if;
 
