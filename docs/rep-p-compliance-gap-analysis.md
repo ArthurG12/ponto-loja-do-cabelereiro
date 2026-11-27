@@ -45,7 +45,7 @@ A página do MTE disponibiliza versões atualizadas em 31/07/2026:
 
 | Área | Situação atual | Providência necessária |
 |---|---|---|
-| NSR | allocate_rep_nsr() é usado pelas marcações; eventos ainda não têm NSR | Unificar a sequência por estabelecimento para todas as operações que geram registros AFD (tipos 2, 4, 5, 6 e 7) |
+| NSR | Migration 008 cria rep_ledger, espelha marcações tipo 7 e fornece append_rep_afd_event() para tipos 2, 4, 5 e 6 | Validar payloads tipados de cada registro, cobrir eventos administrativos reais e impedir qualquer caminho de gravação fora do livro |
 | Hash do AFD | record_hash atual é SHA-256 de JSON canônico interno | Implementar o hash do registro 7 a partir dos campos normativos e hash anterior; não reutilizar o JSON atual sem validação |
 | CPF do trabalhador | employees.cpf é opcional | Exigir CPF válido antes de liberar o uso REP-P e preservar snapshot do CPF na marcação |
 | Coletor | collector_id atual é identificador livre do tablet | Separar identificador interno do coletor e código normativo 01–05 |
@@ -71,8 +71,8 @@ A página do MTE disponibiliza versões atualizadas em 31/07/2026:
 
 ## 5. Próxima sequência de trabalho
 
-1. Criar migration aditiva para metadados do empregador, desenvolvedor, coletor e snapshot de CPF/horários.
-2. Redesenhar NSR e eventos da ARP para cobrir todos os registros normativos.
+1. Migration 008 cria a primeira versão do livro imutável rep_ledger, metadados iniciais do empregador e a API de inclusão de eventos AFD com NSR compartilhado.
+2. Completar os metadados do desenvolvedor e do coletor, além de exigir CPF e preservar snapshots de identificação e horário.
 3. Corrigir o hash do registro tipo 7 e criar vetores de teste e verificador de cadeia.
 4. Implementar gerador AFD 004 e validador estrutural/CRC/hash.
 5. Implementar PTRP, AEJ 002 e Espelho de Ponto.
