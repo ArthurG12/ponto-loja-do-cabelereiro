@@ -75,7 +75,7 @@ export async function requestCadesDetachedSignature(content, {
   }
   if (url.protocol !== 'https:' || url.username || url.password || !serviceToken
     || !/^[A-Fa-f0-9]{64}$/.test(normalizeFingerprint(expectedFingerprint))
-    || !/^\\d+(?:\\.\\d+){2,}$/.test(expectedPolicyIdentifier)) {
+    || !/^\d+(?:\.\d+){2,}$/.test(expectedPolicyIdentifier)) {
     throw fail('Configuração privada do assinador CAdES inválida.');
   }
 
