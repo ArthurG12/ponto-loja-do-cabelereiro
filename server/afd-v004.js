@@ -219,7 +219,7 @@ export function validateAfdV004(input) {
   if (lines.at(-1) === '') lines.pop();
   if (lines.some((line) => line.length === 0)) errors.push('Arquivo contém linha em branco.');
   if (lines.length < 3) errors.push('AFD deve conter cabeçalho, trailer e marcador de assinatura.');
-  if (lines[0]?.length !== 302 || lines[0]?.[9] !== '1') errors.push('Cabeçalho AFD inválido.');
+  if (lines[0]?.length !== 302 || lines[0]?.[9] !== '1' || lines[0]?.slice(250, 253) !== '004') errors.push('Cabeçalho AFD inválido ou versão diferente de 004.');
   if (lines[0]?.length === 302 && lines[0].slice(-4) !== crc16Kermit(lines[0].slice(0, -4))) errors.push('CRC-16/KERMIT inválido no cabeçalho AFD.');
   if (lines.at(-1)?.length !== 100 || !lines.at(-1)?.startsWith(SIGNATURE_MARKER)) errors.push('Marcador de assinatura AFD inválido.');
   const trailer = lines.at(-2) || '';
@@ -235,6 +235,7 @@ export function validateAfdV004(input) {
     previous = nsr;
     if (!RECORD_TYPES.has(type)) errors.push(`Tipo de registro inválido: ${type}.`);
     if (type in counts) counts[type] += 1;
+    if (type === '6' && !['02', '07', '08'].includes(line.slice(34, 36))) errors.push('Código de evento inválido no registro tipo 6.');
     const expectedLength = { '2': 331, '4': 73, '5': 118, '6': 36, '7': 137 }[type];
     if (line.length !== expectedLength) errors.push(`Tamanho incorreto para registro tipo ${type}.`);
     if (['2', '4', '5'].includes(type) && line.slice(-4) !== crc16Kermit(line.slice(0, -4))) errors.push(`CRC-16/KERMIT inválido no registro tipo ${type}.`);
