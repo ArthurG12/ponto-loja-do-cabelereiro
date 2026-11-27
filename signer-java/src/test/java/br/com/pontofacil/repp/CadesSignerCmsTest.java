@@ -133,8 +133,11 @@ class CadesSignerCmsTest {
 
         KeyPairGenerator ec = KeyPairGenerator.getInstance("EC");
         ec.initialize(256);
+        assertEquals("SHA256withECDSA", CadesSigner.signatureAlgorithmFor(ec.generateKeyPair().getPrivate()));
+
+        KeyPairGenerator ed25519 = KeyPairGenerator.getInstance("Ed25519");
         assertThrows(SecurityException.class,
-                () -> CadesSigner.signatureAlgorithmFor(ec.generateKeyPair().getPrivate()));
+                () -> CadesSigner.signatureAlgorithmFor(ed25519.generateKeyPair().getPrivate()));
     }
 
 }
