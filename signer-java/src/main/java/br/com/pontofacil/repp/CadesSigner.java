@@ -506,18 +506,31 @@ final class CadesSigner implements CadesSigningService {
         Instant nextUpdate = asInstant(root.getObjectAt(offset + 1));
         byte[] policyHash = MessageDigest.getInstance("SHA-256").digest(policyDer);
         ASN1Sequence paRoot = ASN1Sequence.getInstance(ASN1Primitive.fromByteArray(policyDer));
-        if (paRoot.size() != 2 || !(paRoot.getObjectAt(0).toASN1Primitive() instanceof ASN1Sequence)) {
-            throw new SecurityException("CAdES policy DER structure is incomplete or ambiguous");
+        if (paRoot.size() < 2 || paRoot.size() > 3) {
+            throw new SecurityException("CAdES policy DER must contain hash algorithm, policy info and optional policy hash");
         }
-        ASN1Sequence internalHash = ASN1Sequence.getInstance(paRoot.getObjectAt(1));
-        if (internalHash.size() != 2) throw new SecurityException("CAdES policy hash structure is invalid");
+        ASN1Sequence hashAlgorithmIdentifier = ASN1Sequence.getInstance(paRoot.getObjectAt(0));
+        if (hashAlgorithmIdentifier.size() != 1) {
+            throw new SecurityException("CAdES policy SHA-256 AlgorithmIdentifier parameters must be absent");
+        }
         String internalHashAlgorithm = ASN1ObjectIdentifier.getInstance(
-                ASN1Sequence.getInstance(internalHash.getObjectAt(0)).getObjectAt(0)).getId();
-        byte[] internalPolicyHash = ASN1OctetString.getInstance(internalHash.getObjectAt(1)).getOctets();
+                hashAlgorithmIdentifier.getObjectAt(0)).getId();
+        ASN1Sequence policyInfo = ASN1Sequence.getInstance(paRoot.getObjectAt(1));
+        ASN1EncodableVector hashInputFields = new ASN1EncodableVector();
+        hashInputFields.add(paRoot.getObjectAt(0));
+        hashInputFields.add(paRoot.getObjectAt(1));
+        byte[] computedPolicyHash = MessageDigest.getInstance("SHA-256")
+                .digest(new DERSequence(hashInputFields).getEncoded(ASN1Encoding.DER));
+        if (paRoot.size() == 3) {
+            byte[] embeddedPolicyHash = ASN1OctetString.getInstance(paRoot.getObjectAt(2)).getOctets();
+            if (!MessageDigest.isEqual(computedPolicyHash, embeddedPolicyHash)) {
+                throw new SecurityException("Embedded SignPolicyHash does not match signPolicyHashAlg and signPolicyInfo");
+            }
+        }
         byte[] configuredAttributeHash = HexFormat.of().parseHex(attributeHashHex);
         if (!SHA256_OID.equals(internalHashAlgorithm)
-                || !MessageDigest.isEqual(internalPolicyHash, configuredAttributeHash)) {
-            throw new SecurityException("Configured CAdES signature-policy hash differs from the hash embedded in the PA");
+                || !MessageDigest.isEqual(computedPolicyHash, configuredAttributeHash)) {
+            throw new SecurityException("Configured CAdES signature-policy hash differs from the computed SignPolicyHash");
         }
         boolean found = false;
         Instant notBefore = null;
