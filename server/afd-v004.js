@@ -213,8 +213,6 @@ export function validateAfdV004(input) {
   const rawText = buffer.toString('latin1');
   const withoutCrlf = rawText.replaceAll(String.fromCharCode(13, 10), '');
   if (withoutCrlf.includes(String.fromCharCode(10)) || withoutCrlf.includes(String.fromCharCode(13))) errors.push('Quebra de linha diferente de CRLF.');
-    errors.push('Quebra de linha diferente de CRLF.');
-  }
   const content = buffer.toString('latin1');
   if (!content.endsWith('\r\n')) errors.push('Arquivo deve terminar em CRLF.');
   const lines = content.split('\r\n');
