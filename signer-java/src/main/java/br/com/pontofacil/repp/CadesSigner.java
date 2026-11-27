@@ -161,6 +161,7 @@ final class CadesSigner {
         }
         if (leaf == null || key == null || chain.isEmpty()) throw new SecurityException("PKCS#12 signing identity is incomplete");
         leaf.checkValidity();
+        if (leaf.getBasicConstraints() >= 0) throw new SecurityException("Signing certificate must be an end-entity certificate");
         boolean[] usage = leaf.getKeyUsage();
         if (usage == null || usage.length == 0 || !usage[0]) throw new SecurityException("Signing certificate lacks digitalSignature key usage");
         String actualFingerprint = sha256(leaf.getEncoded()).toUpperCase(Locale.ROOT);
@@ -171,7 +172,8 @@ final class CadesSigner {
         String algorithm = key instanceof RSAKey ? "SHA256withRSA"
                 : key instanceof ECKey ? "SHA256withECDSA" : null;
         if (algorithm == null) throw new SecurityException("Unsupported signing key algorithm");
-        return new CadesSigner(key, leaf, chain, anchors, algorithm, policy,
+        verifyKeyPair(key, leaf, algorithm);
+        return new CadesSigner(key, leaf, chain, anchors, algorithm,
                 actualFingerprint, cpf, environment, policyVersion, lpa, lpaSignature);
     }
 
@@ -194,6 +196,26 @@ final class CadesSigner {
         verifyDetachedCms(lpaDer, lpaSignature, trustAnchors, true);
         validatePath(signerCertificate, signerChain, trustAnchors);
         return signInternal(operationId, content, sha256(content));
+    }
+
+
+    static void verifyKeyPair(PrivateKey privateKey, X509Certificate certificate, String algorithm) throws Exception {
+        byte[] challenge = new byte[32];
+        new SecureRandom().nextBytes(challenge);
+        try {
+            Signature signer = Signature.getInstance(algorithm);
+            signer.initSign(privateKey);
+            signer.update(challenge);
+            byte[] proof = signer.sign();
+            Signature verifier = Signature.getInstance(algorithm);
+            verifier.initVerify(certificate.getPublicKey());
+            verifier.update(challenge);
+            if (!verifier.verify(proof)) {
+                throw new SecurityException("PKCS#12 private key does not match the signing certificate");
+            }
+        } finally {
+            Arrays.fill(challenge, (byte) 0);
+        }
     }
 
     private static void validateSigningInput(String operationId, byte[] content, String claimedDigest) throws Exception {
