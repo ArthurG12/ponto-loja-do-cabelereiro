@@ -15,7 +15,7 @@ declare
   check_digit integer;
   i integer;
 begin
-  if length(digits) <> 11 or digits ~ '^(.)\\1{10}$' then
+  if length(digits) <> 11 or digits = repeat(substring(digits, 1, 1), 11) then
     return false;
   end if;
 
@@ -47,7 +47,8 @@ alter table public.time_marks
   check (
     employee_cpf_snapshot is not null
     and employee_cpf_snapshot ~ '^[0-9]{11}$'
-    and collector_type is not null\n    and collector_type in ('01','02','03','04','05')
+    and collector_type is not null
+    and collector_type in ('01','02','03','04','05')
     and is_offline = false
   ) not valid;
 
