@@ -8,6 +8,14 @@ const REQUIRED_VALIDATION_FLAGS = [
   'chainValid',
   'revocationChecked',
   'policyValid',
+  'policyNotRevoked',
+  'signingCertificateAttributeValid',
+  'messageDigestValid',
+  'contentTypeValid',
+  'lpaSignatureValid',
+  'lpaIntegrityValid',
+  'lpaFreshnessChecked',
+  'developerIdentityValid',
 ];
 
 function fail(message) {
@@ -51,6 +59,7 @@ export async function requestCadesDetachedSignature(content, {
   endpoint = process.env.REP_CADES_SIGNER_URL || '',
   serviceToken = process.env.REP_CADES_SIGNER_TOKEN || '',
   expectedFingerprint = process.env.REP_CADES_CERT_SHA256 || '',
+  expectedPolicyIdentifier = process.env.REP_CADES_POLICY_OID || '',
   fetchImpl = fetch,
   timeoutMs = 20_000,
   now = new Date(),
@@ -65,7 +74,8 @@ export async function requestCadesDetachedSignature(content, {
     throw fail('Serviço privado CAdES não configurado.');
   }
   if (url.protocol !== 'https:' || url.username || url.password || !serviceToken
-    || !/^[A-Fa-f0-9]{64}$/.test(normalizeFingerprint(expectedFingerprint))) {
+    || !/^[A-Fa-f0-9]{64}$/.test(normalizeFingerprint(expectedFingerprint))
+    || !/^\\d+(?:\\.\\d+){2,}$/.test(expectedPolicyIdentifier)) {
     throw fail('Configuração privada do assinador CAdES inválida.');
   }
 
@@ -100,14 +110,15 @@ export async function requestCadesDetachedSignature(content, {
   }
 
   const fingerprint = normalizeFingerprint(result.signerCertificateFingerprint);
-  if (fingerprint !== normalizeFingerprint(expectedFingerprint)) {
-    throw fail('O certificado utilizado não corresponde ao certificado autorizado do desenvolvedor.');
-  }
-  if (!/^\d+(?:\.\d+){2,}$/.test(String(result.policyIdentifier || ''))
-    || !isIsoDate(result.lpaValidFrom) || !isIsoDate(result.lpaValidUntil)
-    || Date.parse(result.lpaValidFrom) > now.getTime()
-    || Date.parse(result.lpaValidUntil) < now.getTime()) {
-    throw fail('A política CAdES/LPA informada pelo assinador está ausente ou fora da vigência.');
+  if (result.policyIdentifier !== expectedPolicyIdentifier
+    || result.policyVersion !== '2.4'
+    || !isIsoDate(result.policyValidFrom) || !isIsoDate(result.policyValidUntil)
+    || !isIsoDate(result.lpaNextUpdate)
+    || Date.parse(result.policyValidFrom) > now.getTime()
+    || Date.parse(result.policyValidUntil) < now.getTime()
+    || Date.parse(result.lpaNextUpdate) < now.getTime()
+    || !/^[A-Fa-f0-9]{64}$/.test(String(result.lpaSha256 || ''))) {
+    throw fail('A política CAdES/LPA informada pelo assinador está ausente, não é a política autorizada ou está fora da vigência.');
   }
   if (result.environment !== 'production'
     || !REQUIRED_VALIDATION_FLAGS.every((flag) => result.validation?.[flag] === true)) {
@@ -121,7 +132,10 @@ export async function requestCadesDetachedSignature(content, {
     contentSha256,
     signerCertificateFingerprint: fingerprint,
     policyIdentifier: result.policyIdentifier,
-    lpaValidFrom: result.lpaValidFrom,
-    lpaValidUntil: result.lpaValidUntil,
+    policyVersion: result.policyVersion,
+    policyValidFrom: result.policyValidFrom,
+    policyValidUntil: result.policyValidUntil,
+    lpaNextUpdate: result.lpaNextUpdate,
+    lpaSha256: result.lpaSha256,
   };
 }
