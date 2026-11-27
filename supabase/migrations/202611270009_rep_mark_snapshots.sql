@@ -59,7 +59,7 @@ begin
   if p_name is null or length(trim(p_name)) < 3 then raise exception 'Informe o nome da colaboradora.'; end if;
   if p_schedule not in ('A', 'B') then raise exception 'Escolha a jornada A ou B.'; end if;
   if not public.rep_is_valid_cpf(digits) then raise exception 'Informe um CPF válido.'; end if;
-  if p_pin is not null and (p_pin !~ '^[0-9]{4,6}' or length(p_pin) not between 4 and 6) then
+  if p_pin is not null and (p_pin ~ '[^0-9]' or length(p_pin) not between 4 and 6) then
     raise exception 'A senha precisa ter de 4 a 6 números.';
   end if;
   if p_id is null and p_pin is null then raise exception 'Defina uma senha numérica de 4 a 6 dígitos.'; end if;
