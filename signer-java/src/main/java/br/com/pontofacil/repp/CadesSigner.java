@@ -172,7 +172,7 @@ final class CadesSigner {
         if (!digest.equalsIgnoreCase(claimedDigest)) throw new SecurityException("Content digest mismatch");
 
         byte[] certHash = MessageDigest.getInstance("SHA-256").digest(signerCertificate.getEncoded());
-        ESSCertIDv2 essCert = new ESSCertIDv2(new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256), certHash);
+        ESSCertIDv2 essCert = new ESSCertIDv2(certHash);
         SigningCertificateV2 signingCertificate = new SigningCertificateV2(new ESSCertIDv2[]{essCert});
         ASN1EncodableVector policyHashFields = new ASN1EncodableVector();
         policyHashFields.add(new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256));
@@ -188,6 +188,7 @@ final class CadesSigner {
         var digestProvider = new JcaDigestCalculatorProviderBuilder().setProvider("BC").build();
         ContentSigner contentSigner = new JcaContentSignerBuilder(signatureAlgorithm).setProvider("BC").build(privateKey);
         SignerInfoGenerator signerInfo = new JcaSignerInfoGeneratorBuilder(digestProvider)
+                .setContentDigest(new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256))
                 .setSignedAttributeGenerator(new DefaultSignedAttributeTableGenerator(signedAttributes))
                 .build(contentSigner, signerCertificate);
         CMSSignedDataGenerator generator = new CMSSignedDataGenerator();
