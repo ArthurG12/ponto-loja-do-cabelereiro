@@ -211,8 +211,8 @@ begin
   -- Tipo 4: ajuste explícito do relógio, com segundos e CPF do responsável.
   event_result := public.admin_adjust_rep_clock(
     establishment_uuid,
-    '2026-11-27T12:00:10-03:00'::timestamptz,
-    '2026-11-27T12:00:40-03:00'::timestamptz
+    '2026-11-27T12:00:30-03:00'::timestamptz,
+    '2026-11-27T12:01:15-03:00'::timestamptz
   );
   if event_result->>'ok' <> 'true'
      or (event_result->>'nsr')::bigint <> 7
@@ -224,11 +224,11 @@ begin
     select 1 from public.rep_ledger
      where establishment_id = establishment_uuid
        and nsr = 7 and record_type = '4'
-       and record_payload->>'before_at' = '2026-11-27T12:00:10-0300'
-       and record_payload->>'adjusted_at' = '2026-11-27T12:00:40-0300'
+       and record_payload->>'before_at' = '2026-11-27T12:00:00-0300'
+       and record_payload->>'adjusted_at' = '2026-11-27T12:01:00-0300'
        and record_payload->>'responsible_cpf' = '52998224725'
        and length(record_payload->>'recorded_at') = 24
-       and record_payload->>'adjustment_seconds' = '30.000000'
+       and record_payload->>'adjustment_seconds' = '45.000000'
   ) then
     raise exception 'Registro AFD tipo 4 incompleto ou com formato DH incorreto.';
   end if;
