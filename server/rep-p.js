@@ -4,10 +4,13 @@ const supabaseUrl = process.env.SUPABASE_URL || '';
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const collectorId = process.env.REP_COLLECTOR_ID || '';
 const collectorType = process.env.REP_COLLECTOR_TYPE || '';
+const establishmentId = process.env.REP_ESTABLISHMENT_ID || '';
+const establishmentIdIsValid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(establishmentId);
 const configured = /^https:\/\//.test(supabaseUrl)
   && serviceRoleKey.length >= 20
   && collectorId.trim().length >= 3
-  && ['01', '02', '03', '04', '05'].includes(collectorType);
+  && ['01', '02', '03', '04', '05'].includes(collectorType)
+  && establishmentIdIsValid;
 
 const supabase = configured
   ? createClient(supabaseUrl, serviceRoleKey, {
@@ -19,7 +22,7 @@ const allowedTypes = new Set(['entrada', 'saida_intervalo', 'retorno_intervalo',
 
 export async function registerRepPunch(input) {
   if (!configured || !supabase) {
-    return { ok: false, error: 'Registro REP-P indisponível: configure SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, REP_COLLECTOR_ID e REP_COLLECTOR_TYPE no servidor.' };
+    return { ok: false, error: 'Registro REP-P indisponível: configure SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, REP_COLLECTOR_ID, REP_COLLECTOR_TYPE e REP_ESTABLISHMENT_ID no servidor.' };
   }
 
   const employeeId = String(input?.employeeId || '');
@@ -155,4 +158,22 @@ export async function listActiveRepEmployees() {
   }
 
   return { ok: true, employees: data || [] };
+}
+
+export async function recordRepServiceEvent(eventCode) {
+  if (!configured || !supabase) {
+    return { ok: false, error: 'Registro de disponibilidade REP-P indisponível: configure o backend e REP_ESTABLISHMENT_ID.' };
+  }
+  if (!['07', '08'].includes(eventCode)) {
+    return { ok: false, error: 'Código de transição de serviço inválido.' };
+  }
+  const { data, error } = await supabase.rpc('record_rep_service_event', {
+    p_establishment_id: establishmentId,
+    p_event_code: eventCode,
+  });
+  if (error) {
+    console.error('Falha ao registrar evento de disponibilidade REP-P:', error.code || 'sem código');
+    return { ok: false, error: 'Não foi possível registrar o evento de disponibilidade.' };
+  }
+  return data?.ok === true ? data : { ok: false, error: 'O banco não confirmou o evento de disponibilidade.' };
 }
