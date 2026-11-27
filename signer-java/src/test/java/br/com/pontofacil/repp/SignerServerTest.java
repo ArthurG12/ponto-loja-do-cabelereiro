@@ -49,4 +49,17 @@ class SignerServerTest {
         assertThrows(IOException.class, () -> SignerServer.parseRequest("{}".getBytes(StandardCharsets.UTF_8)));
     }
 
+    @Test void jsonStringLimitCanCarryTheMaximumBase64AfdPayload() {
+        int maximumBase64Length = 4 * ((25_000_000 + 2) / 3);
+        assertTrue(SignerServer.MAX_JSON_STRING_LENGTH >= maximumBase64Length);
+    }
+
+    @Test void rejectsExcessivelyNestedJson() {
+        String nested = "[".repeat(17) + "null" + "]".repeat(17);
+        String request = "{\"operationId\":\"123e4567-e89b-12d3-a456-426614174000\","
+                + "\"content\":" + nested + ",\"contentSha256\":\"" + "a".repeat(64)
+                + "\",\"format\":\"CAdES-detached\",\"contentType\":\"application/octet-stream\"}";
+        assertThrows(IOException.class, () -> SignerServer.parseRequest(request.getBytes(StandardCharsets.UTF_8)));
+    }
+
 }
