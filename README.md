@@ -54,7 +54,7 @@ Cada push na branch `main` gera o build e publica. O endereço do Supabase e a c
 
 ## Integração REP-P em desenvolvimento
 
-A branch `feat/rep-p-arp` contém migrations aditivas para a ARP e uma API REP-P isolada do servidor legado SQLite. O processo dedicado é iniciado com `npm run start:rep-p` e executa apenas os endpoints REP-P; ele não importa, inicializa nem semeia o banco SQLite local. Quando `VITE_REP_API_URL` estiver configurada no build do frontend, as novas marcações online são enviadas para `POST /api/rep-p/register`; sem essa variável, o sistema mantém o fluxo Supabase legado. **O fluxo legado não deve ser tratado como REP-P.**
+A branch `feat/rep-p-arp` contém migrations aditivas para a ARP e uma API REP-P isolada do servidor legado SQLite. O processo dedicado é iniciado com `npm run start:rep-p` e executa apenas os endpoints REP-P; ele não importa, inicializa nem semeia o banco SQLite local. O frontend remoto exige `VITE_REP_API_URL` para listar colaboradores (`GET /api/rep-p/employees`), consultar marcações (`POST /api/rep-p/today`) e registrar novas marcações (`POST /api/rep-p/register`). **Se a URL do backend não estiver configurada ou o serviço estiver indisponível, a operação remota falha de forma fechada: não há fallback para as RPCs legadas de marcação.** O modo SQLite local continua separado e não deve ser tratado como REP-P.
 
 Configure no ambiente privado do processo backend:
 
@@ -63,6 +63,8 @@ Configure no ambiente privado do processo backend:
 - `REP_COLLECTOR_ID`: identificador estável do coletor/tablet.
 - `REP_COLLECTOR_TYPE`: código normativo do coletor: `01` mobile, `02` navegador, `03` desktop, `04` dispositivo eletrônico ou `05` outro. Para o tablet acessado pelo navegador, use `02`.
 - `REP_ALLOWED_ORIGIN` ou `REP_ALLOWED_ORIGINS`: origem(ens) exata(s) do frontend. Para várias origens, separe por vírgula.
+
+O endpoint de equipe retorna somente identificador, nome e jornada de colaboradores ativos. As RPCs legadas de listagem, validação de PIN e gravação de marcação não ficam mais acessíveis pelo navegador; a consulta do histórico legado é feita pelo backend com `service_role`.
 - `HOST=0.0.0.0` e `PORT`: endereço e porta de escuta do serviço.
 
 O processo oferece `GET /healthz` para verificação de vida e `GET /readyz` para verificar se as variáveis obrigatórias estão configuradas. A API aceita somente JSON, limita o corpo a 16 KiB, aplica CORS por allowlist e não habilita cookies ou sessão administrativa. O processo deve ser executado como serviço Node persistente, atrás de HTTPS, com reinício automático e logs protegidos.
