@@ -47,8 +47,8 @@ A página do MTE disponibiliza versões atualizadas em 31/07/2026:
 |---|---|---|
 | NSR | Migration 008 cria rep_ledger, espelha marcações tipo 7 e fornece append_rep_afd_event() para tipos 2, 4, 5 e 6 | Validar payloads tipados de cada registro, cobrir eventos administrativos reais e impedir qualquer caminho de gravação fora do livro |
 | Hash do AFD | record_hash atual é SHA-256 de JSON canônico interno | Implementar o hash do registro 7 a partir dos campos normativos e hash anterior; não reutilizar o JSON atual sem validação |
-| CPF do trabalhador | employees.cpf é opcional | Exigir CPF válido antes de liberar o uso REP-P e preservar snapshot do CPF na marcação |
-| Coletor | collector_id atual é identificador livre do tablet | Separar identificador interno do coletor e código normativo 01–05 |
+| CPF do trabalhador | Migration 009 adiciona validação matemática no cadastro, exige CPF válido na RPC de marcação e preserva snapshot de 11 dígitos; registros antigos podem continuar sem CPF | Completar integração de alterações cadastrais com registro AFD tipo 5 e revisar tratamento de dados pessoais |
+| Coletor | Backend exige identificador estável e código normativo 01–05; configuração inicial do tablet via navegador é 02 | Inventariar cada coletor físico e controlar seu ciclo de vida e alterações |
 | Horários | recorded_at existe; created_at é gerado pelo banco | Formalizar e preservar horário da marcação e horário da gravação, ambos com fuso |
 | Eventos da ARP | rep_events registra evento genérico sem NSR | Modelar alterações de empregador, ajustes de relógio, alterações de empregados e eventos sensíveis, com responsável, data/hora e NSR |
 | Dados do empregador | establishments tem nome e documento genérico | Completar tipo/documento, nome legal, local de prestação, CAEPF/CNO quando aplicável |
@@ -72,7 +72,7 @@ A página do MTE disponibiliza versões atualizadas em 31/07/2026:
 ## 5. Próxima sequência de trabalho
 
 1. Migration 008 cria a primeira versão do livro imutável rep_ledger, metadados iniciais do empregador e a API de inclusão de eventos AFD com NSR compartilhado.
-2. Completar os metadados do desenvolvedor e do coletor, além de exigir CPF e preservar snapshots de identificação e horário.
+2. Completar os metadados do desenvolvedor e do coletor, além de integrar alterações de empregados como registros AFD tipo 5 e preservar snapshots de identificação e horário.
 3. Corrigir o hash do registro tipo 7 e criar vetores de teste e verificador de cadeia.
 4. Implementar gerador AFD 004 e validador estrutural/CRC/hash.
 5. Implementar PTRP, AEJ 002 e Espelho de Ponto.
