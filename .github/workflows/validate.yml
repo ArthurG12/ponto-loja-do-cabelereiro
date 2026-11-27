@@ -92,6 +92,8 @@ jobs:
           java-version: '21'
           cache: maven
           cache-dependency-path: signer-java/pom.xml
+      - name: Validate ITI artifact provisioning script syntax
+        run: bash -n signer-java/scripts/fetch-iti-cades-artifacts.sh
       - name: Verify independent OpenSSL support
         run: openssl version
       - name: Test CAdES signer with Java and OpenSSL
