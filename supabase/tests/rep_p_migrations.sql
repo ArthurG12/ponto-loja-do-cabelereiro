@@ -42,12 +42,18 @@ begin
   first_mark := result->'punch';
   if (first_mark->>'nsr')::bigint <> 1 then raise exception 'NSR inicial deveria ser 1.'; end if;
   if length(first_mark->>'record_hash') <> 64 then raise exception 'Hash SHA-256 interno inválido.'; end if;
-  if first_mark->>'hash_version' <> 'legacy-json-v1' then raise exception 'Hash legado não identificado.'; end if;
+  if first_mark->>'hash_version' <> 'afd-v004-fixed-concat-candidate-v1' then raise exception 'Versão candidata do hash AFD não identificada.'; end if;
   if first_mark->>'employee_cpf_snapshot' <> '52998224725' then raise exception 'Snapshot CPF ausente.'; end if;
   if first_mark->>'collector_type' <> '02' or first_mark->>'is_offline' <> 'false' then
     raise exception 'Metadados do coletor incorretos.';
   end if;
   if first_mark->>'previous_hash' is not null then raise exception 'Primeira marcação não deveria possuir hash anterior.'; end if;
+  if first_mark->>'record_hash' <> public.rep_afd_v004_mark_hash(
+    (first_mark->>'nsr')::bigint, (first_mark->>'recorded_at')::timestamptz,
+    first_mark->>'employee_cpf_snapshot', (first_mark->>'created_at')::timestamptz,
+    first_mark->>'collector_type', (first_mark->>'is_offline')::boolean,
+    first_mark->>'previous_hash', 'America/Sao_Paulo'
+  ) then raise exception 'Hash persistido diverge do verificador AFD.'; end if;
 
   result := public.register_time_mark(
     employee_uuid, '1234', 'entrada', (first_mark->>'client_request_id')::uuid, 'ci-test-collector', '02'
@@ -116,6 +122,16 @@ begin
   exception when raise_exception then
     if sqlerrm = 'Livro AFD permitiu DELETE.' then raise; end if;
   end;
+
+  if public.rep_afd_format_dh('2026-01-02T13:03:42+00'::timestamptz, 'America/Sao_Paulo') <> '2026-01-02T10:03:00-0300' then
+    raise exception 'Formatação DH AFD incorreta.';
+  end if;
+  if public.rep_afd_v004_hash_input(1, '2026-01-02T13:03:42+00'::timestamptz, '52998224725', '2026-01-02T13:03:59+00'::timestamptz, '02', false, null, 'America/Sao_Paulo') <> '00000000172026-01-02T10:03:00-030052998224725 2026-01-02T10:03:00-0300020' then
+    raise exception 'Serialização fixa do hash AFD divergiu do vetor de teste.';
+  end if;
+  if public.rep_afd_v004_mark_hash(1, '2026-01-02T13:03:42+00'::timestamptz, '52998224725', '2026-01-02T13:03:59+00'::timestamptz, '02', false, null, 'America/Sao_Paulo') <> 'ae9d6fb9ce501d6ab4626c7df591de4682880817b1cdde141b9c1ab1e5de5c4d' then
+    raise exception 'SHA-256 AFD divergiu do vetor independente.';
+  end if;
 
   if not public.rep_is_valid_cpf('52998224725')
      or public.rep_is_valid_cpf('11111111111') then
