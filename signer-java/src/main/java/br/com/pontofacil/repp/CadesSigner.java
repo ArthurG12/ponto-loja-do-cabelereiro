@@ -468,6 +468,9 @@ final class CadesSigner implements CadesSigningService {
             }
             anchors.add(new TrustAnchor(x509, null));
         }
+        if (anchors.size() != 2) {
+            throw new SecurityException("AD-RB 2.4 trust bundle must contain exactly the ICP-Brasil v2 and v5 root anchors");
+        }
         return Set.copyOf(anchors);
     }
 
