@@ -11,7 +11,7 @@
 - Conferência do hash SHA-256 da política DER publicado na LPA e do hash interno da PA usado no atributo CAdES.
 - Restrição explícita à política ICP-Brasil CAdES AD-RB versão 2.4 (OID 2.16.76.1.7.1.1.2.4).
 - Carregamento de identidade PKCS#12 externa ao repositório; pin SHA-256 do certificado, CPF do desenvolvedor no Subject, certificado final não-CA, digitalSignature KeyUsage e prova criptográfica de correspondência entre chave privada e certificado na inicialização.
-- Construção CMS detached com contentType, messageDigest, signingCertificateV2 e sigPolicyId; atualmente suporta RSA/SHA-256 (mínimo 2048 bits) e ECDSA/SHA-256 (mínimo 256 bits). A PA 2.4 também permite SHA-512 e Ed25519/Ed448, mas esses algoritmos ainda não foram implementados e são rejeitados explicitamente.
+- Construção CMS detached com contentType, messageDigest, signingCertificateV2 e sigPolicyId; atualmente suporta RSA/SHA-256 (mínimo 2048 bits) e ECDSA/SHA-256 (mínimo 256 bits). A IN ITI nº 33/2025 lista também RSA/SHA-512, ECDSA/SHA-512, Ed25519/Ed448 e variantes Ed25519ph/Ed448ph. O assinador ainda implementa somente RSA/SHA-256 e ECDSA/SHA-256; os demais são rejeitados explicitamente. Para CMS, o RFC 8419 especifica PureEdDSA e não usa HashEdDSA (variantes `ph`), e Ed448 exige SHAKE256 com saída de 512 bits; não habilitar essas variantes sem implementação e vetores independentes.
 - Reabertura e verificação criptográfica independente do CMS recém-gerado antes de retornar a assinatura.
 - A rota só responde ready depois de validar configuração, LPA, política, cadeia e identidade. Cada consulta de readiness e cada assinatura revalidam a LPA e o caminho/revogação; falha ou indisponibilidade bloqueia a operação.
 
