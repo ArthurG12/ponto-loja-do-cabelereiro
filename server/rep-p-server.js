@@ -1,11 +1,12 @@
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
-import { listActiveRepEmployees, listRepPunchesToday, registerRepPunch } from './rep-p.js';
+import { listActiveRepEmployees, listRepPunchesToday, recordRepServiceEvent, registerRepPunch } from './rep-p.js';
 
 const PORT = Number(process.env.PORT || 5176);
 const HOST = process.env.HOST || '0.0.0.0';
 const MAX_BODY_BYTES = 16 * 1024;
 const REP_ROUTES = new Set(['/api/rep-p/employees', '/api/rep-p/register', '/api/rep-p/today']);
+let serviceAvailableRecorded = false;
 
 function configured() {
   return Boolean(
@@ -13,8 +14,13 @@ function configured() {
     && (process.env.SUPABASE_SERVICE_ROLE_KEY || '').length >= 20
     && (process.env.REP_COLLECTOR_ID || '').trim().length >= 3
     && ['01', '02', '03', '04', '05'].includes(process.env.REP_COLLECTOR_TYPE || '')
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(process.env.REP_ESTABLISHMENT_ID || '')
     && allowedOrigins().size > 0
   );
+}
+
+function ready() {
+  return configured() && serviceAvailableRecorded;
 }
 
 function allowedOrigins() {
@@ -101,8 +107,8 @@ export function createRepServer() {
       return;
     }
     if (req.method === 'GET' && pathname === '/readyz') {
-      const ready = configured();
-      send(res, ready ? 200 : 503, { ok: ready, service: 'rep-p-api', configured: ready });
+      const isReady = ready();
+      send(res, isReady ? 200 : 503, { ok: isReady, service: 'rep-p-api', configured: configured(), availabilityRecorded: serviceAvailableRecorded });
       return;
     }
 
@@ -134,8 +140,8 @@ export function createRepServer() {
       send(res, 405, { ok: false, error: 'Método não permitido.' }, { allow: employeeListRoute ? 'GET, OPTIONS' : 'POST, OPTIONS' });
       return;
     }
-    if (!configured()) {
-      send(res, 503, { ok: false, error: 'Serviço REP-P não configurado.' }, corsHeaders);
+    if (!ready()) {
+      send(res, 503, { ok: false, error: 'Serviço REP-P não configurado ou evento de disponibilidade ainda não registrado.' }, corsHeaders);
       return;
     }
     if (employeeListRoute) {
@@ -176,7 +182,28 @@ export function createRepServer() {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const server = createRepServer();
-  server.listen(PORT, HOST, () => {
-    console.log(`API REP-P em http://${HOST}:${PORT}`);
+  server.listen(PORT, HOST, async () => {
+    const event = await recordRepServiceEvent('07');
+    serviceAvailableRecorded = event.ok === true;
+    if (!serviceAvailableRecorded) {
+      console.error('API REP-P iniciou, mas não registrou o evento AFD tipo 6 de disponibilidade.');
+    } else {
+      console.log(`API REP-P disponível em http://${HOST}:${PORT}`);
+    }
   });
+
+  let stopping = false;
+  const shutdown = async (signal) => {
+    if (stopping) return;
+    stopping = true;
+    serviceAvailableRecorded = false;
+    server.close();
+    const event = await recordRepServiceEvent('08');
+    if (!event.ok) {
+      console.error(`Encerramento ${signal} sem confirmação do evento AFD tipo 6 de indisponibilidade.`);
+    }
+    server.closeAllConnections();
+  };
+  process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
+  process.on('SIGINT', () => { void shutdown('SIGINT'); });
 }
