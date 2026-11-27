@@ -50,7 +50,7 @@ A página do MTE disponibiliza versões atualizadas em 31/07/2026:
 | CPF do trabalhador | Migration 009 adiciona validação matemática no cadastro, exige CPF válido na RPC de marcação e preserva snapshot de 11 dígitos; registros antigos podem continuar sem CPF | Completar integração de alterações cadastrais com registro AFD tipo 5 e revisar tratamento de dados pessoais |
 | Coletor | Backend exige identificador estável e código normativo 01–05; configuração inicial do tablet via navegador é 02 | Inventariar cada coletor físico e controlar seu ciclo de vida e alterações |
 | Horários | recorded_at existe; created_at é gerado pelo banco | Formalizar e preservar horário da marcação e horário da gravação, ambos com fuso |
-| Eventos da ARP | rep_events registra evento genérico sem NSR | Modelar alterações de empregador, ajustes de relógio, alterações de empregados e eventos sensíveis, com responsável, data/hora e NSR |
+| Eventos da ARP | Migration 012 registra inclusão, alteração e desativação de empregado como AFD tipo 5, com NSR compartilhado, snapshot cadastral e responsável quando autenticado | Integrar alterações do empregador (tipo 2), ajustes do relógio (tipo 4) e eventos técnicos (tipo 6); validar payloads finais do leiaute antes de gerar AFD |
 | Dados do empregador | establishments tem nome e documento genérico | Completar tipo/documento, nome legal, local de prestação, CAEPF/CNO quando aplicável |
 | Identidade do software | Não há número INPI nem metadados completos do desenvolvedor | Criar configuração versionada com registro INPI, versão, CPF/nome/e-mail do desenvolvedor |
 | AFD | Ainda não implementado | Gerar AFD por intervalo temporal, leiaute 004, CRLF, ISO-8859-1, registros ordenados, trailer e assinatura CAdES |
@@ -62,6 +62,12 @@ A página do MTE disponibiliza versões atualizadas em 31/07/2026:
 | Assinatura | Não implementada | Certificado ICP-Brasil do desenvolvedor, assinatura CAdES destacada de AFD/AEJ e PAdES do comprovante |
 
 
+
+
+
+### Eventos cadastrais de empregados (migration 012)
+
+Um trigger `AFTER INSERT OR UPDATE` na tabela `employees` gera o registro AFD tipo 5 na mesma transação da operação cadastral. São registrados inclusão (`I`), alteração (`A`) e desativação (`E`), com CPF, nome, admissão, jornada, situação, e-mail e telefone, além do identificador do empregado e responsável autenticado. Atualizações técnicas de PIN, tentativas inválidas e bloqueios não geram eventos cadastrais, pois não alteram os campos de identificação acompanhados pelo trigger. Se o estabelecimento ou a alocação de NSR estiverem indisponíveis, a operação cadastral falha integralmente.
 
 ### Segurança do fluxo remoto (migration 011)
 
