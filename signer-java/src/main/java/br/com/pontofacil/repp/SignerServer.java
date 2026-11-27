@@ -3,6 +3,7 @@ package br.com.pontofacil.repp;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.StreamReadFeature;
+import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
@@ -24,7 +25,15 @@ import java.util.concurrent.TimeUnit;
 
 public final class SignerServer {
     private static final int MAX_REQUEST_BYTES = 34_000_000;
-    private static final ObjectMapper JSON = new ObjectMapper(JsonFactory.builder().enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION).build());
+    static final int MAX_JSON_STRING_LENGTH = 34_000_000;
+    private static final ObjectMapper JSON = new ObjectMapper(JsonFactory.builder()
+            .streamReadConstraints(StreamReadConstraints.builder()
+                    .maxNestingDepth(16)
+                    .maxStringLength(MAX_JSON_STRING_LENGTH)
+                    .maxNumberLength(100)
+                    .build())
+            .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
+            .build());
     private static final Set<String> REQUEST_FIELDS = Set.of("operationId", "content", "contentSha256", "format", "contentType");
     private final byte[] serviceToken;
     private final CadesSigner signer;
