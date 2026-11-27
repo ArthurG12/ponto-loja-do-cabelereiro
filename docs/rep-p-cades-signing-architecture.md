@@ -66,19 +66,43 @@ A assinatura só poderá ser ativada após implementação e testes automatizado
 
 ## Controles adicionais identificados na versão 4.6.2
 
-A revisão das notas de versão 4.6.2 (03/09/2026) identificou uma ressalva relevante: a validação do hash da política no \`CAdESChecker\` foi desabilitada por padrão para preservar compatibilidade com assinaturas já aceitas por validadores do SERPRO e do ITI. A mesma release introduziu detecção de inconsistência entre o OID do algoritmo declarado e o tamanho do \`hashValue\` do \`SignaturePolicyIdentifier\`. Consequentemente:
+A revisão das notas de versão 4.6.2 (03/09/2026) identificou uma ressalva relevante: a validação do hash da política no `CAdESChecker` foi desabilitada por padrão para preservar compatibilidade com assinaturas já aceitas por validadores do SERPRO e do ITI. A mesma release introduziu detecção de inconsistência entre o OID do algoritmo declarado e o tamanho do `hashValue` do `SignaturePolicyIdentifier`. Consequentemente:
 
-- Não tratar \`CAdESChecker\` como prova suficiente de que o hash da PA/LPA foi validado. O serviço deve recomputar SHA-256 do DER da LPA e compará-lo com o valor publicado no canal oficial, além de validar criptograficamente o arquivo de assinatura da LPA.
+- Não tratar `CAdESChecker` como prova suficiente de que o hash da PA/LPA foi validado. O serviço deve recomputar SHA-256 do DER da LPA e compará-lo com o valor publicado no canal oficial, além de validar criptograficamente o arquivo de assinatura da LPA.
 - O verificador independente deve conferir o algoritmo declarado, o OID, o tamanho do digest e o digest efetivo do DER. Qualquer inconsistência deve bloquear a assinatura.
-- A cadeia de produção \`chain-icp-brasil\` deve ser a única cadeia ICP-Brasil habilitada no processo de produção. A documentação da 4.6.2 informa que providers presentes no classpath são carregados automaticamente, inclusive módulos de homologação; portanto, não incluir \`chain-icp-brasil-homolog\` nem \`chain-iti-homolog\` no artefato de produção. Não basta configurar um sinalizador se a dependência de homologação continuar empacotada.
+- A cadeia de produção `chain-icp-brasil` deve ser a única cadeia ICP-Brasil habilitada no processo de produção. A documentação da 4.6.2 informa que providers presentes no classpath são carregados automaticamente, inclusive módulos de homologação; portanto, não incluir `chain-icp-brasil-homolog` nem `chain-iti-homolog` no artefato de produção. Não basta configurar um sinalizador se a dependência de homologação continuar empacotada.
 - O trust anchor usado para validar a assinatura da LPA deve ser provisionado fora do repositório, com fingerprint SHA-256 verificado por procedimento operacional independente. Não confiar em certificado raiz recebido no mesmo download que a LPA.
 - O resultado de validação deve distinguir assinatura matemática válida, cadeia confiável, revogação verificada e política vigente. Uma verificação positiva de CMS não equivale, isoladamente, a todas essas condições.
 
-A LPA CAdES publicada pelo ITI é atualizada em ciclos e contém \`nextUpdate\`; o ITI informa que a própria LPA é assinada com PKCS#7 por certificado de pessoa jurídica do ITI. O serviço deve falhar fechado quando não conseguir baixar ou validar os artefatos, sem reaproveitar indefinidamente um cache expirado.
+A LPA CAdES publicada pelo ITI é atualizada em ciclos e contém `nextUpdate`; o ITI informa que a própria LPA é assinada com PKCS#7 por certificado de pessoa jurídica do ITI. O serviço deve falhar fechado quando não conseguir baixar ou validar os artefatos, sem reaproveitar indefinidamente um cache expirado.
 
 ## Critérios de teste adicionais
 
-- Teste negativo com hash DER alterado, hash publicado adulterado, OID de algoritmo incorreto e \`hashValue\` com tamanho incompatível.
+- Teste negativo com hash DER alterado, hash publicado adulterado, OID de algoritmo incorreto e `hashValue` com tamanho incompatível.
 - Teste de empacotamento que falha se qualquer artefato de cadeia de homologação estiver no classpath/runtime de produção.
 - Teste com certificado da LPA fora da cadeia confiável configurada, certificado expirado ou revogado.
-- Teste de indisponibilidade do ITI e de \`nextUpdate\` vencido: nenhuma assinatura pode ser produzida usando LPA vencida.
+- Teste de indisponibilidade do ITI e de `nextUpdate` vencido: nenhuma assinatura pode ser produzida usando LPA vencida.
+
+
+## Fontes oficiais e bootstrap de confiança da LPA
+
+Fontes consultadas em 27/11/2026:
+
+- Página de publicação e situação das políticas: https://www.gov.br/iti/pt-br/assuntos/repositorio/lista-de-politicas-de-assinatura
+- LPA CAdES DER: http://politicas.icpbrasil.gov.br/LPA_CAdES.der
+- Hash publicado do DER: http://politicas.icpbrasil.gov.br/LPA_CAdES_der-sha256.txt
+- Assinatura PKCS#7 da LPA: http://politicas.icpbrasil.gov.br/LPA_CAdES.p7s
+- Hash publicado do arquivo PKCS#7: http://politicas.icpbrasil.gov.br/LPA_CAdES_p7s-sha256.txt
+- Repositório oficial de certificados das ACs ICP-Brasil: https://www.gov.br/iti/pt-br/assuntos/repositorio/certificados-das-acs-da-icp-brasil-arquivo-unico-compactado
+
+A página do ITI consultada apresenta o ciclo CAdES vigente de 03/10/2026 a 01/01/2027. O pacote de cadeias ICP-Brasil foi atualizado em 04/11/2026. Essas datas são referência da consulta, não valores permanentes: o processo de bootstrap deve consultar a página oficial a cada atualização e registrar a versão/data dos artefatos efetivamente usados.
+
+**Ordem de confiança obrigatória:**
+
+1. Obter a cadeia vigente de ACs por canal HTTPS oficial do ITI e validar o hash SHA-512 publicado pelo próprio ITI. O trust anchor efetivamente instalado deve ter fingerprint SHA-256 previamente aprovado e provisionado fora do repositório; não instalar automaticamente qualquer certificado extraído do ZIP como raiz confiável.
+2. Baixar LPA DER e .p7s. Calcular SHA-256 dos dois arquivos e comparar com os sidecars publicados. Como os links de artefato atualmente listados pelo ITI usam HTTP, os sidecars são uma verificação de consistência, não uma âncora de confiança independente.
+3. Verificar a assinatura CMS/PKCS#7 destacada da LPA sobre os bytes DER exatos. Validar o certificado signatário, construir caminho até o trust anchor previamente aprovado e verificar validade temporal e revogação por mecanismo ICP-Brasil operacional. Se a revogação não puder ser determinada, o resultado é inconclusivo e deve bloquear o serviço.
+4. Só depois da validação criptográfica e da cadeia, interpretar a estrutura ASN.1, nextUpdate, períodos de vigência, OIDs, URLs e hashes das políticas. Conferir novamente o hash do DER da política específica antes de passá-la ao mecanismo CAdES.
+5. Persistir metadados de auditoria (hashes, data de obtenção, nextUpdate, fingerprint do signatário da LPA, trust anchor usado e resultado da validação), nunca confiar apenas em cache vencido.
+
+O DOC-ICP-15.03 v9.1 determina que a LPA seja assinada digitalmente pelo ITI e descreve a publicação de hashes das políticas. O documento também estabelece atualização da LPA em prazo máximo de 90 dias e assinatura PKCS#7 para CAdES/PAdES. A indisponibilidade de artefato, falha de assinatura, cadeia não confiável, revogação não verificável ou nextUpdate vencido deve interromper a assinatura; não existe fallback permissivo.
