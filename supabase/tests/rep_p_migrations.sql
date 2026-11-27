@@ -71,7 +71,7 @@ begin
 
   result := public.list_employee_time_marks(
     employee_uuid, '1234',
-    (first_mark->>'recorded_at')::timestamptz at time zone 'America/Sao_Paulo'
+    ((first_mark->>'recorded_at')::timestamptz at time zone 'America/Sao_Paulo')::date
   );
   if result->>'ok' <> 'true'
      or jsonb_array_length(result->'punches') <> 1 then
