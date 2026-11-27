@@ -58,7 +58,14 @@ A página do MTE disponibiliza versões atualizadas em 31/07/2026:
 | Comprovante | Não há comprovante REP-P assinado | Gerar PDF PAdES por marcação e disponibilizar histórico mínimo de 48 horas |
 | HLB | clock_timestamp() do PostgreSQL, sem prova de sincronismo | Hospedar o serviço de tempo em infraestrutura controlada, sincronizar com ON/HLB, monitorar desvio e guardar evidências operacionais |
 | Disponibilidade | Não há registro de início/fim do serviço | Registrar eventos 07/08 e monitorar disponibilidade, backup e recuperação |
+| RPCs legadas e acesso | Migration 011 revoga do navegador as RPCs legadas de listagem, PIN e marcação; histórico legado é consultado somente pelo backend | Validar rate limiting e sessões reais Auth; revisar periodicamente grants e advisors do Supabase |
 | Assinatura | Não implementada | Certificado ICP-Brasil do desenvolvedor, assinatura CAdES destacada de AFD/AEJ e PAdES do comprovante |
+
+
+
+### Segurança do fluxo remoto (migration 011)
+
+O frontend remoto não chama mais diretamente as RPCs legadas `list_active_employees`, `verify_employee_pin`, `list_employee_punches` ou `register_punch`. A equipe e o histórico legado passam pelo backend confiável; `list_employee_punches` permanece executável apenas por `service_role`. Sem `VITE_REP_API_URL`, a marcação remota falha de forma fechada em vez de gravar em `punches`. Isso reduz a superfície exposta, mas não substitui rate limiting no backend nem a validação de sessões Auth e RLS.
 
 ## 4. Cuidados de implementação
 
