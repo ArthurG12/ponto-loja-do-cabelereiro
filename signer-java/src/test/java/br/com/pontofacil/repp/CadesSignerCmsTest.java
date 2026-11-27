@@ -39,7 +39,7 @@ class CadesSignerCmsTest {
                 .digest("policy".getBytes(StandardCharsets.UTF_8));
         CadesSigner.Policy policy = new CadesSigner.Policy(
                 "2.16.76.1.7.1.1.2.4", "2.4", now.minusSeconds(60),
-                now.plusSeconds(3600), now.plusSeconds(7200), false,
+                now.plusSeconds(3600), now.plusSeconds(7200), null,
                 policyHash, "a".repeat(64));
         CadesSigner signer = new CadesSigner(pair.getPrivate(), certificate,
                 List.of(certificate), Set.of(), "SHA256withRSA", policy,
@@ -80,7 +80,7 @@ class CadesSignerCmsTest {
                 .setProvider("BC").getCertificate(holder);
         CadesSigner.Policy policy = new CadesSigner.Policy("2.16.76.1.7.1.1.2.4", "2.4",
                 now.minusSeconds(60), now.plusSeconds(3600), now.plusSeconds(7200),
-                false, new byte[32], "b".repeat(64));
+                null, new byte[32], "b".repeat(64));
         CadesSigner signer = new CadesSigner(pair.getPrivate(), certificate,
                 List.of(certificate), Set.of(), "SHA256withRSA", policy,
                 "c".repeat(64), "12345678901", "production", "2.4", new byte[0], new byte[0]);
