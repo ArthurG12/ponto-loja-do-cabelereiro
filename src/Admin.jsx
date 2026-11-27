@@ -175,7 +175,7 @@ function TeamPanel({ staff, onSaved }) {
 
   function edit(person) {
     setError('');
-    setForm({ id: person.id, full_name: person.full_name, schedule_code: person.schedule_code || 'A', pin: '', active: person.active });
+    setForm({ id: person.id, full_name: person.full_name, schedule_code: person.schedule_code || 'A', cpf: person.cpf || '', pin: '', active: person.active });
   }
 
   async function save(event) {
@@ -195,9 +195,10 @@ function TeamPanel({ staff, onSaved }) {
   }
 
   return <section className="report-panel">
-    <div className="panel-head"><h3>Colaboradoras</h3><button className="primary" onClick={() => { setError(''); setForm({ id: null, full_name: '', schedule_code: 'A', pin: '', active: true }); }}><UserPlus size={16} /> Nova colaboradora</button></div>
+    <div className="panel-head"><h3>Colaboradoras</h3><button className="primary" onClick={() => { setError(''); setForm({ id: null, full_name: '', schedule_code: 'A', cpf: '', pin: '', active: true }); }}><UserPlus size={16} /> Nova colaboradora</button></div>
     {form && <form className="form-card" onSubmit={save}>
       <label>Nome<input value={form.full_name} onChange={(event) => setForm({ ...form, full_name: event.target.value })} required minLength={3} /></label>
+      <label>CPF<input inputMode="numeric" autoComplete="off" value={form.cpf || ''} onChange={(event) => setForm({ ...form, cpf: event.target.value.replace(/\D/g, '').slice(0, 11) })} placeholder="11 números" required maxLength={11} disabled={Boolean(form.id && form.cpf)} /></label>
       <div className="choice">{['A', 'B'].map((code) => <label key={code} className={form.schedule_code === code ? 'selected' : ''}><input type="radio" name="schedule" checked={form.schedule_code === code} onChange={() => setForm({ ...form, schedule_code: code })} /><strong>{SCHEDULE_INFO[code].label}</strong><span>{SCHEDULE_INFO[code].detail}</span></label>)}</div>
       <label>{form.id ? 'Nova senha' : 'Senha numérica'}<input inputMode="numeric" autoComplete="new-password" value={form.pin} onChange={(event) => setForm({ ...form, pin: event.target.value.replace(/\D/g, '').slice(0, 6) })} placeholder={form.id ? 'Em branco mantém a senha atual' : '4 a 6 números'} required={!form.id} /></label>
         {error && <p className="error">{error}</p>}
