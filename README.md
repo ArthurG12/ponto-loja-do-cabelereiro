@@ -62,7 +62,6 @@ Configure no ambiente privado do processo backend:
 - `SUPABASE_SERVICE_ROLE_KEY`: chave privilegiada, exclusivamente no servidor.
 - `REP_COLLECTOR_ID`: identificador estável do coletor/tablet.
 - `REP_COLLECTOR_TYPE`: código normativo do coletor: `01` mobile, `02` navegador, `03` desktop, `04` dispositivo eletrônico ou `05` outro. Para o tablet acessado pelo navegador, use `02`.
-- `REP_COLLECTOR_TYPE`: código normativo do coletor: `01` mobile, `02` navegador, `03` desktop, `04` dispositivo eletrônico ou `05` outro. Para o tablet acessado pelo navegador, use `02`.
 - `REP_ALLOWED_ORIGIN` ou `REP_ALLOWED_ORIGINS`: origem(ens) exata(s) do frontend. Para várias origens, separe por vírgula.
 - `HOST=0.0.0.0` e `PORT`: endereço e porta de escuta do serviço.
 
