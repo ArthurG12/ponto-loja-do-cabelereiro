@@ -68,3 +68,43 @@ export async function registerRepPunch(input) {
     },
   };
 }
+
+
+export async function listRepPunchesToday(input) {
+  if (!configured || !supabase) {
+    return { ok: false, error: 'Consulta REP-P indisponível: configure o backend.' };
+  }
+
+  const employeeId = String(input?.employeeId || '');
+  const pin = String(input?.pin || '');
+  const day = String(input?.day || '');
+
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(employeeId)
+    || !/^\\d{4,6}$/.test(pin)
+    || !/^\\d{4}-\\d{2}-\\d{2}$/.test(day)) {
+    return { ok: false, error: 'Dados para consulta inválidos.', punches: [] };
+  }
+
+  const { data, error } = await supabase.rpc('list_employee_time_marks', {
+    p_employee_id: employeeId,
+    p_submitted_pin: pin,
+    p_day: day,
+  });
+
+  if (error) {
+    console.error('Falha na consulta REP-P:', error.code || 'sem código');
+    return { ok: false, error: 'Não foi possível carregar as marcações de hoje.', punches: [] };
+  }
+
+  return {
+    ok: true,
+    punches: (data || []).map((mark) => ({
+      id: mark.id,
+      employee_id: mark.employee_id,
+      punch_type: mark.punch_type,
+      recorded_at: mark.recorded_at,
+      source: mark.source,
+      nsr: mark.nsr,
+    })),
+  };
+}
