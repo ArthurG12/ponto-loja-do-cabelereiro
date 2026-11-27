@@ -155,15 +155,17 @@ function serializeRecord(record, timezone) {
   return prefix;
 }
 
-export function buildAfdV004({ header, records, includeSignatureMarker = true }) {
+export function buildAfdV004({ header, records, includeSignatureMarker = true, initialPreviousType7Hash = null }) {
   assert(header && Array.isArray(records), 'Cabeçalho e registros do AFD são obrigatórios.');
   const ordered = [...records].sort((a, b) => Number(a.nsr) - Number(b.nsr));
   const seen = new Set();
   let previousNsr = 0;
   const headerLine = serializeHeader(header);
   assert(headerLine.slice(-4) === crc16Kermit(headerLine.slice(0, -4)), 'CRC-16/KERMIT inválido no cabeçalho AFD.');
+  assert(initialPreviousType7Hash == null || /^[0-9a-f]{64}$/.test(initialPreviousType7Hash), 'Hash anterior inicial inválido no AFD.');
   const lines = [headerLine];
   const counts = { '2': 0, '3': 0, '4': 0, '5': 0, '6': 0, '7': 0 };
+  let previousType7Hash = initialPreviousType7Hash || '';
 
   for (const record of ordered) {
     const nsr = Number(record.nsr);
@@ -174,17 +176,17 @@ export function buildAfdV004({ header, records, includeSignatureMarker = true })
     const type = String(record.record_type);
     const line = serializeRecord(record, header.timezone);
     if (type === '7') {
-      const previousType7 = [...ordered.slice(0, ordered.indexOf(record))].reverse().find((item) => String(item.record_type) === '7');
       const payload = record.record_payload || {};
       const expectedHash = candidateType7Hash({
         nsr: record.nsr, markedAt: payload.recorded_at,
         cpf: payload.employee_cpf_snapshot,
         recordedAt: payload.recorded_on || payload.created_at,
         collectorType: payload.collector_type, isOffline: payload.is_offline,
-        previousHash: previousType7?.record_hash || null,
+        previousHash: previousType7Hash || null,
         timezone: payload.timezone || header.timezone,
       });
       assert(record.record_hash === expectedHash, 'Hash do registro tipo 7 diverge da cadeia SHA-256 candidata; exportação bloqueada.');
+      previousType7Hash = record.record_hash;
     }
     lines.push(line);
     counts[type] += 1;
@@ -202,12 +204,12 @@ export function buildAfdV004({ header, records, includeSignatureMarker = true })
   if (includeSignatureMarker) lines.push(SIGNATURE_MARKER.padEnd(100, ' '));
 
   const output = Buffer.from(lines.join('\r\n') + '\r\n', 'latin1');
-  const validation = validateAfdV004(output);
+  const validation = validateAfdV004(output, { initialPreviousType7Hash });
   assert(validation.ok, `AFD gerado não passou na validação: ${validation.errors.join('; ')}`);
   return output;
 }
 
-export function validateAfdV004(input) {
+export function validateAfdV004(input, { initialPreviousType7Hash = null } = {}) {
   const buffer = Buffer.isBuffer(input) ? input : Buffer.from(input);
   const errors = [];
   const rawText = buffer.toString('latin1');
@@ -226,7 +228,7 @@ export function validateAfdV004(input) {
   if (trailer.length !== 64 || trailer.slice(0, 9) !== '999999999' || trailer.at(-1) !== '9') errors.push('Trailer AFD inválido.');
   const recordLines = lines.slice(1, -2);
   let previous = 0;
-  let previousType7Hash = '';
+  let previousType7Hash = initialPreviousType7Hash || '';
   const counts = { '2': 0, '3': 0, '4': 0, '5': 0, '6': 0, '7': 0 };
   for (const line of recordLines) {
     const nsr = Number(line.slice(0, 9));
