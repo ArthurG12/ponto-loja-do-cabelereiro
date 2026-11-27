@@ -19,14 +19,20 @@ begin
     return new;
   end if;
 
-  select count(*), min(id)
-    into active_establishment_count, active_establishment_id
+  select count(*)
+    into active_establishment_count
     from public.establishments
    where active = true;
 
   if active_establishment_count <> 1 then
     raise exception 'Não foi possível identificar um único estabelecimento ativo para o funcionário.';
   end if;
+
+  select id
+    into active_establishment_id
+    from public.establishments
+   where active = true
+   limit 1;
 
   new.establishment_id := active_establishment_id;
   return new;
