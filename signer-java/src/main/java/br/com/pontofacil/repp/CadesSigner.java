@@ -115,7 +115,7 @@ final class CadesSigner {
         try (InputStream in = Files.newInputStream(keyStorePath)) {
             keyStore.load(in, password);
         } finally {
-            Arrays.fill(password, '\\0');
+            Arrays.fill(password, '\0');
         }
         String alias = null;
         Enumeration<String> aliases = keyStore.aliases();
@@ -135,9 +135,9 @@ final class CadesSigner {
             key = (PrivateKey) keyStore.getKey(alias, keyPass);
             leaf = (X509Certificate) keyStore.getCertificate(alias);
             java.security.cert.Certificate[] certs = keyStore.getCertificateChain(alias);
-            if (certs != null) for (Certificate cert : certs) chain.add((X509Certificate) cert);
+            if (certs != null) for (java.security.cert.Certificate cert : certs) chain.add((X509Certificate) cert);
         } finally {
-            Arrays.fill(keyPass, '\\0');
+            Arrays.fill(keyPass, '\0');
         }
         if (leaf == null || key == null || chain.isEmpty()) throw new SecurityException("PKCS#12 signing identity is incomplete");
         leaf.checkValidity();
