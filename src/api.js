@@ -18,6 +18,7 @@ function configured(url, key) {
 }
 
 export const remote = configured(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
+const repApiUrl = (import.meta.env.VITE_REP_API_URL || '').replace(/\\/+$/, '');
 export const supabase = remote ? createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY) : null;
 
 function messageFrom(error, fallback) {
@@ -79,6 +80,23 @@ const remoteApi = {
     return { ok: true, punches: data || [] };
   },
   async registerPunch(employeeId, pin, type, requestId) {
+    if (repApiUrl) {
+      try {
+        const response = await fetch(`${repApiUrl}/api/rep-p/register`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ employeeId, pin, type, requestId }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result?.ok) {
+          return { ok: false, error: result?.error || 'Não foi possível registrar a marcação.' };
+        }
+        return result;
+      } catch {
+        return { ok: false, error: 'Servidor de registro indisponível. A marcação não foi registrada.' };
+      }
+    }
+
     const { data, error } = await supabase.rpc('register_punch', {
       employee_uuid: employeeId,
       submitted_pin: pin,
