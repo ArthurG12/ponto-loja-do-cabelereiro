@@ -25,37 +25,14 @@ function numericField(value, width, label, { required = false, pad = '0' } = {})
   return pad === ' ' ? valueText.padEnd(width, ' ') : valueText.padStart(width, '0');
 }
 
+).test(digits), `${label} deve conter exatamente ${expected} dígitos.`);
+  return digits.padStart(14, '0');
+}
+
 function employerIdentifier(value, type, label) {
   const digits = String(value ?? '');
   const expected = type === '1' ? 14 : 11;
-  assert(new RegExp(`^\\\\d{${expected}}import { createHash } from 'node:crypto';
-
-const SIGNATURE_MARKER = 'ASSINATURA_DIGITAL_EM_ARQUIVO_P7S';
-const RECORD_TYPES = new Set(['2', '4', '5', '6', '7']);
-
-function assert(condition, message) {
-  if (!condition) throw new Error(message);
-}
-
-function textField(value, width, label, { required = false } = {}) {
-  const valueText = value == null ? '' : String(value);
-  assert(!required || valueText.trim().length > 0, `${label} obrigatório no AFD.`);
-  assert(!/[\r\n]/.test(valueText), `${label} não pode conter quebra de linha.`);
-  assert([...valueText].every((char) => char.codePointAt(0) <= 255), `${label} contém caractere fora de ISO-8859-1.`);
-  assert(Buffer.byteLength(valueText, 'latin1') <= width, `${label} excede ${width} posições.`);
-  return valueText.padEnd(width, ' ');
-}
-
-function numericField(value, width, label, { required = false, pad = '0' } = {}) {
-  const valueText = value == null ? '' : String(value);
-  assert(!required || valueText.length > 0, `${label} obrigatório no AFD.`);
-  assert(/^\d*$/.test(valueText), `${label} deve conter apenas dígitos.`);
-  assert(valueText.length <= width, `${label} excede ${width} posições.`);
-  if (!valueText && !required) return ' '.repeat(width);
-  return pad === ' ' ? valueText.padEnd(width, ' ') : valueText.padStart(width, '0');
-}
-
-).test(digits), `${label} deve conter exatamente ${expected} dígitos.`);
+  assert(digits.length === expected && /^\\d+$/.test(digits), `${label} deve conter exatamente ${expected} dígitos.`);
   return digits.padStart(14, '0');
 }
 
