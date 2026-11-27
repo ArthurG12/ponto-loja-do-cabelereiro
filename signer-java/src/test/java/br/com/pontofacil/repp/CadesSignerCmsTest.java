@@ -34,6 +34,10 @@ class CadesSignerCmsTest {
                 .setProvider("BC").build(pair.getPrivate()));
         X509Certificate certificate = new JcaX509CertificateConverter()
                 .setProvider("BC").getCertificate(holder);
+        assertDoesNotThrow(() -> CadesSigner.verifyKeyPair(pair.getPrivate(), certificate, "SHA256withRSA"));
+        KeyPair wrongPair = generator.generateKeyPair();
+        assertThrows(SecurityException.class,
+                () -> CadesSigner.verifyKeyPair(wrongPair.getPrivate(), certificate, "SHA256withRSA"));
 
         byte[] policyHash = MessageDigest.getInstance("SHA-256")
                 .digest("policy".getBytes(StandardCharsets.UTF_8));
@@ -59,7 +63,14 @@ class CadesSignerCmsTest {
         assertTrue(info.verify(new JcaSimpleSignerInfoVerifierBuilder().setProvider("BC").build(certificate)));
         assertNotNull(info.getSignedAttributes().get(CMSAttributes.contentType));
         assertNotNull(info.getSignedAttributes().get(CMSAttributes.messageDigest));
-        assertNotNull(info.getSignedAttributes().get(new org.bouncycastle.asn1.ASN1ObjectIdentifier("1.2.840.113549.1.9.16.2.47")));
+        var signingCertAttribute = info.getSignedAttributes().get(new org.bouncycastle.asn1.ASN1ObjectIdentifier("1.2.840.113549.1.9.16.2.47"));
+        assertNotNull(signingCertAttribute);
+        var signingCertV2 = org.bouncycastle.asn1.ess.SigningCertificateV2.getInstance(
+                signingCertAttribute.getAttrValues().getObjectAt(0));
+        assertEquals(org.bouncycastle.asn1.nist.NISTObjectIdentifiers.id_sha256,
+                signingCertV2.getCerts()[0].getHashAlgorithm().getAlgorithm());
+        assertArrayEquals(MessageDigest.getInstance("SHA-256").digest(certificate.getEncoded()),
+                signingCertV2.getCerts()[0].getCertHash());
         assertNotNull(info.getSignedAttributes().get(new org.bouncycastle.asn1.ASN1ObjectIdentifier("1.2.840.113549.1.9.16.2.15")));
         assertEquals("2.16.76.1.7.1.1.2.4", response.get("policyIdentifier"));
         assertEquals("2.4", response.get("policyVersion"));
