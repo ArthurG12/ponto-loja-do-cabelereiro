@@ -53,13 +53,13 @@ A página do MTE disponibiliza versões atualizadas em 31/07/2026:
 | Eventos da ARP | Migrations 012 e 017 registram eventos AFD tipo 5 com CPF do empregado e do responsável; migration 013 registra tipo 2; migration 015 registra disponibilidade tipo 6 (07/08) | Integrar monitor externo para quedas abruptas e retorno de energia (02), completar demais dados de identificação do tipo 5 e validar serialização/CRC na geração AFD |
 | Dados do empregador | Migration 013 adiciona fluxo administrativo protegido para CPF do responsável e dados do empregador; alteração gera AFD tipo 2 transacional | Integrar formulário administrativo, preencher dados reais da Loja do Cabeleireiro e validar CNPJ/CPF, CAEPF/CNO e local de prestação antes da operação real |
 | Identidade do software | Não há número INPI nem metadados completos do desenvolvedor | Criar configuração versionada com registro INPI, versão, CPF/nome/e-mail do desenvolvedor |
-| AFD | Ainda não implementado | Gerar AFD por intervalo temporal, leiaute 004, CRLF, ISO-8859-1, registros ordenados, trailer e assinatura CAdES |
+| AFD | Serializador AFD v004 e rota autenticada de preparação implementados; entrega continua bloqueada em 503. Hash tipo 7 permanece candidato. | Validar independentemente a serialização do tipo 7, concluir validação independente do AFD e só então integrar a assinatura real e liberar AFD + .p7s juntos |
 | AEJ/PTRP | Tratamento formal e AEJ ainda não implementados | Criar trilha de tratamento sem alterar originais, geração AEJ 002 e Espelho |
 | Comprovante | Não há comprovante REP-P assinado | Gerar PDF PAdES por marcação e disponibilizar histórico mínimo de 48 horas |
 | HLB | clock_timestamp() do PostgreSQL, sem prova de sincronismo | Hospedar o serviço de tempo em infraestrutura controlada, sincronizar com ON/HLB, monitorar desvio e guardar evidências operacionais |
 | Disponibilidade | Migration 015 registra eventos 07/08 no início e no encerramento gracioso do backend, com NSR e timestamp DH | Monitor externo para quedas abruptas, eventos de retorno de energia (02), alertas, backup e recuperação |
 | RPCs legadas e acesso | Migration 011 revoga do navegador as RPCs legadas de listagem, PIN e marcação; histórico legado é consultado somente pelo backend | Validar rate limiting e sessões reais Auth; revisar periodicamente grants e advisors do Supabase |
-| Assinatura | Não implementada | Certificado ICP-Brasil do desenvolvedor, assinatura CAdES destacada de AFD/AEJ e PAdES do comprovante |
+| Assinatura | Serviço Java CAdES implementado e testado com chaves sintéticas; sem LPA/PA/raízes/certificado real provisionados, sem HSM e sem integração de liberação AFD. | Provisionar raízes ICP-Brasil v5/v12 e LPA/PA atuais; validar certificado real e OCSP/LCR; integrar Node/Java, verificação CMS independente e PAdES do comprovante |
 
 
 
@@ -93,7 +93,7 @@ O frontend remoto não chama mais diretamente as RPCs legadas `list_active_emplo
 
 O módulo `server/afd-v004.js` implementa a montagem dos registros tipo 1 (cabeçalho), 2, 4, 5, 6 e 7, trailer tipo 9 e marcador de assinatura destacado. Aplica ISO-8859-1, CRLF, campos de largura fixa, NSR crescente, CRC-16/KERMIT nos tipos 1 a 5 e conferência SHA-256 encadeada nos registros tipo 7. O teste de referência do CRC `123456789 = 2189` está automatizado.
 
-A geração é deliberadamente bloqueada se faltar o número de registro INPI, identificação do empregador/desenvolvedor, dados obrigatórios ou se a cadeia tipo 7 não corresponder ao algoritmo candidato já gravado. O módulo ainda não está ligado a uma rota de download nem assina o arquivo: a assinatura destacada CAdES ICP-Brasil e o acesso autenticado/limitado ao AFD continuam pendentes. O hash tipo 7 ainda requer validação independente, portanto não deve ser tratado como homologado.
+A geração é deliberadamente bloqueada se faltar o número de registro INPI, identificação do empregador/desenvolvedor, dados obrigatórios ou se a cadeia tipo 7 não corresponder ao algoritmo candidato já gravado. A rota autenticada de preparação do AFD existe, mas permanece bloqueada em 503 e não entrega o arquivo. O serviço Java CAdES está implementado, porém ainda não está integrado à liberação, não foi provisionado com artefatos/certificado reais e não passou por verificação independente com cadeia de produção. O hash tipo 7 ainda requer validação independente, portanto não deve ser tratado como homologado.
 
 ## 4. Cuidados de implementação
 
@@ -111,7 +111,7 @@ A geração é deliberadamente bloqueada se faltar o número de registro INPI, i
 3. Validar a serialização candidata do hash tipo 7 com segunda implementação independente; depois criar o verificador completo de cadeia.
 4. Integrar o módulo AFD v004 já iniciado a uma consulta autenticada e limitada ao ledger, depois de validar o hash tipo 7 com implementação independente.
 5. Implementar PTRP, AEJ 002 e Espelho de Ponto.
-6. Implementar assinatura ICP-Brasil e comprovante PDF PAdES.
+6. Provisionar e ensaiar o assinador Java CAdES com raízes v5/v12, LPA/PA atuais, certificado real e OCSP/LCR; integrar e validar independentemente antes de liberar AFD + .p7s. Implementar separadamente o comprovante PDF PAdES.
 7. Configurar sincronismo HLB, monitoramento, redundância, backup e recuperação.
 8. Executar homologação interna com dados fictícios e revisão jurídica/documental antes do uso real.
 
