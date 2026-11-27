@@ -13,7 +13,7 @@
 - Carregamento de identidade PKCS#12 externa ao repositório; pin SHA-256 do certificado, CPF do desenvolvedor no Subject, certificado final não-CA, digitalSignature KeyUsage e prova criptográfica de correspondência entre chave privada e certificado na inicialização.
 - Construção CMS detached com contentType, messageDigest, signingCertificateV2 e sigPolicyId; assinatura RSA/SHA-256 conforme AD-RB 2.4, rejeitando ECDSA e chaves RSA abaixo de 2048 bits.
 - Reabertura e verificação criptográfica independente do CMS recém-gerado antes de retornar a assinatura.
-- A rota só responde ready depois de validar configuração, LPA, política, cadeia e identidade. Falha de validação bloqueia inicialização ou assinatura.
+- A rota só responde ready depois de validar configuração, LPA, política, cadeia e identidade. Cada consulta de readiness e cada assinatura revalidam a LPA e o caminho/revogação; falha ou indisponibilidade bloqueia a operação.
 
 ## Configuração obrigatória
 
