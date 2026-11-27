@@ -134,7 +134,7 @@ final class CadesSigner {
         try {
             key = (PrivateKey) keyStore.getKey(alias, keyPass);
             leaf = (X509Certificate) keyStore.getCertificate(alias);
-            Certificate[] certs = keyStore.getCertificateChain(alias);
+            java.security.cert.Certificate[] certs = keyStore.getCertificateChain(alias);
             if (certs != null) for (Certificate cert : certs) chain.add((X509Certificate) cert);
         } finally {
             Arrays.fill(keyPass, '\\0');
