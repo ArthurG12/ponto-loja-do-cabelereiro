@@ -66,7 +66,10 @@ O backend precisa receber, em variáveis privadas do ambiente de execução:
 
 No build do frontend, configure `VITE_REP_API_URL` com a URL pública do backend. A chave `service_role` jamais pode ser colocada em `.env.production`, variável `VITE_*`, código do navegador ou repositório.
 
-A função de registro valida o PIN no banco, controla a sequência prevista, aloca NSR por estabelecimento em transação, registra horário do PostgreSQL e encadeia os hashes SHA-256. A gravação original é feita em `time_marks`; a tabela legada `punches` permanece separada nesta fase.
+A função de registro valida o PIN no banco, controla a sequência prevista, aloca NSR por estabelecimento em transação, registra horário do PostgreSQL e encadeia os hashes SHA-256. A gravação original é feita em `time_marks`; a tabela legada `punches` permanece separada nesta fase. A migration `202611260003_assign_employee_establishment.sql` também vincula automaticamente novos funcionários ao único estabelecimento ativo; se houver mais de um, a inclusão falha de forma segura.
+
+
+**Integração ainda incompleta na interface:** nesta etapa, a tela de conferência do funcionário e os relatórios administrativos ainda consultam o fluxo legado `punches`. Portanto, embora o endpoint novo grave em `time_marks`, a visualização completa dessas marcações na interface ainda precisa ser integrada antes de habilitar `VITE_REP_API_URL` para uso diário.
 
 **Limitação importante:** usar `clock_timestamp()` não comprova, por si só, sincronização nem rastreabilidade da Hora Legal Brasileira (HLB). Antes de qualquer uso como REP-P, o servidor e o banco precisam estar em infraestrutura com sincronização HLB documentada e monitorada, variação dentro do limite normativo, controles operacionais e testes. Ainda não foram implementados assinatura digital ICP-Brasil, comprovante legal, AFD/AEJ ou PTRP. Portanto, esta integração é uma etapa técnica de desenvolvimento, não uma declaração de conformidade legal.
 
