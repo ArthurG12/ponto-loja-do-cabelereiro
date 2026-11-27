@@ -149,7 +149,7 @@ export function createRepServer({ readiness = ready, authenticateAdmin = authent
     }
     if (afdRoute) {
       const authorization = String(req.headers.authorization || '');
-      const bearer = authorization.match(/^Bearer\\s+([^\\s]+)$/i);
+      const bearer = authorization.match(/^Bearer\s+([^\s]+)$/i);
       if (!bearer) {
         send(res, 401, { ok: false, error: 'Autenticação necessária.' }, corsHeaders);
         return;
