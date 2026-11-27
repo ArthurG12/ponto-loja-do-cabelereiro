@@ -54,17 +54,19 @@ Cada push na branch `main` gera o build e publica. O endereço do Supabase e a c
 
 ## Integração REP-P em desenvolvimento
 
-A branch `feat/rep-p-arp` contém migrations aditivas para a ARP e um endpoint de registro protegido no backend. Quando `VITE_REP_API_URL` estiver configurada no build do frontend, as novas marcações online são enviadas para `POST /api/rep-p/register`; sem essa variável, o sistema mantém o fluxo Supabase legado. **O fluxo legado não deve ser tratado como REP-P.**
+A branch `feat/rep-p-arp` contém migrations aditivas para a ARP e uma API REP-P isolada do servidor legado SQLite. O processo dedicado é iniciado com `npm run start:rep-p` e executa apenas os endpoints REP-P; ele não importa, inicializa nem semeia o banco SQLite local. Quando `VITE_REP_API_URL` estiver configurada no build do frontend, as novas marcações online são enviadas para `POST /api/rep-p/register`; sem essa variável, o sistema mantém o fluxo Supabase legado. **O fluxo legado não deve ser tratado como REP-P.**
 
-O backend precisa receber, em variáveis privadas do ambiente de execução:
+Configure no ambiente privado do processo backend:
 
 - `SUPABASE_URL`: URL do projeto Supabase.
-- `SUPABASE_SERVICE_ROLE_KEY`: chave service_role, exclusivamente no servidor.
+- `SUPABASE_SERVICE_ROLE_KEY`: chave privilegiada, exclusivamente no servidor.
 - `REP_COLLECTOR_ID`: identificador estável do coletor/tablet.
-- `REP_ALLOWED_ORIGIN`: origem exata do frontend, por exemplo `https://arthurg12.github.io`.
-- `HOST` e `PORT`: endereço e porta de escuta do serviço.
+- `REP_ALLOWED_ORIGIN` ou `REP_ALLOWED_ORIGINS`: origem(ens) exata(s) do frontend. Para várias origens, separe por vírgula.
+- `HOST=0.0.0.0` e `PORT`: endereço e porta de escuta do serviço.
 
-No build do frontend, configure `VITE_REP_API_URL` com a URL pública do backend. A chave `service_role` jamais pode ser colocada em `.env.production`, variável `VITE_*`, código do navegador ou repositório.
+O processo oferece `GET /healthz` para verificação de vida e `GET /readyz` para verificar se as variáveis obrigatórias estão configuradas. A API aceita somente JSON, limita o corpo a 16 KiB, aplica CORS por allowlist e não habilita cookies ou sessão administrativa. O processo deve ser executado como serviço Node persistente, atrás de HTTPS, com reinício automático e logs protegidos.
+
+No build do frontend, configure `VITE_REP_API_URL` com a URL pública do backend. A chave privilegiada jamais pode ser colocada em `.env.production`, variável `VITE_*`, código do navegador ou repositório. Não compartilhe essa chave no chat.
 
 A função de registro valida o PIN no banco, controla a sequência prevista, aloca NSR por estabelecimento em transação, registra horário do PostgreSQL e encadeia os hashes SHA-256. A migration `202611260004_read_employee_time_marks.sql` adiciona a leitura do próprio dia por PIN exclusivamente via backend. A gravação original é feita em `time_marks`; a tabela legada `punches` permanece separada nesta fase. A migration `202611260003_assign_employee_establishment.sql` também vincula automaticamente novos funcionários ao único estabelecimento ativo; se houver mais de um, a inclusão falha de forma segura.
 
