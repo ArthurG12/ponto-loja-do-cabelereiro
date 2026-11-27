@@ -71,7 +71,7 @@ A RPC backend-only `record_rep_service_event` registra apenas transições reais
 
 ### Ajuste do relógio (migration 014)
 
-A RPC `admin_adjust_rep_clock` exige administrador autenticado e CPF válido no perfil. Recebe os instantes explícitos anterior e posterior ao ajuste físico, preserva segundos e offset no formato DH do AFD, registra o instante de gravação e o responsável, e chama a API interna de eventos para alocar NSR compartilhado e gravar tipo 4 em `rep_events` e `rep_ledger` na mesma transação. Instantes ausentes, infinitos ou iguais são rejeitados. A função não altera o relógio do servidor nem comprova sincronismo HLB; ainda é necessário um controlador confiável integrado ao Observatório Nacional, com evidência de leitura imediatamente antes/depois do ajuste.
+A RPC `admin_adjust_rep_clock` exige administrador autenticado e CPF válido no perfil. Recebe os instantes explícitos anterior e posterior ao ajuste físico, serializa os campos DH com segundos fixos em `00` e offset, conforme o leiaute oficial; preserva a diferença real em segundos apenas como metadado auxiliar, registra o instante de gravação e o responsável, e chama a API interna de eventos para alocar NSR compartilhado e gravar tipo 4 em `rep_events` e `rep_ledger` na mesma transação. Instantes ausentes, infinitos ou iguais são rejeitados. A função não altera o relógio do servidor nem comprova sincronismo HLB; ainda é necessário um controlador confiável integrado ao Observatório Nacional, com evidência de leitura imediatamente antes/depois do ajuste.
 
 ### Identificação do empregador (migration 013)
 
