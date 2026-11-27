@@ -165,7 +165,7 @@ final class CadesSigner {
 
     Map<String, Object> sign(String operationId, byte[] content, String claimedDigest) throws Exception {
         if (content == null || content.length == 0 || content.length > 25_000_000
-                || !operationId.matches("[0-9a-fA-F-]{36}")) {
+                || !operationId.matches("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")) {
             throw new IllegalArgumentException("Invalid signing request");
         }
         String digest = sha256(content);
