@@ -56,7 +56,7 @@ A porta não deve ser publicada na Internet. Use rede privada e TLS/mTLS na fron
 
 ## Testes e limites ainda abertos
 
-- CI Maven/JDK 21 cobre compilação, pacote, controles de token, parsing ASN.1 da LPA/PA, limites de vigência de 90 dias, rejeição de JSON ambíguo/aninhado, capacidade Base64 para AFD de 25 MB, algoritmo AD-RB 2.4 (RSA mínimo 2048; EC rejeitado) e geração/verificação CMS detached com chave RSA efêmera de teste.
+- CI Maven/JDK 21 cobre compilação, pacote, controles de token, parsing ASN.1 da LPA/PA, limites de vigência de 90 dias, rejeição de JSON ambíguo/aninhado, capacidade Base64 para AFD de 25 MB, algoritmo AD-RB 2.4 (RSA mínimo 2048; EC rejeitado), integração HTTP e geração/verificação CMS detached com chave RSA efêmera de teste.
 - Vetores sintéticos não demonstram que os artefatos oficiais atuais, a cadeia ICP-Brasil ou o certificado real do desenvolvedor serão aceitos.
 - Ainda são necessários testes de integração com LPA CAdES oficial assinada pelo ITI, trust anchors oficiais pinados, respostas OCSP/CRL reais, certificado ICP-Brasil válido do desenvolvedor e verificação por uma segunda implementação independente.
 - A validação da revogação depende de conectividade aos respondedores OCSP/CRL; indisponibilidade ou resultado inconclusivo bloqueia. O serviço configura timeouts de conexão/leitura de 10 segundos para OCSP, LCR e recuperação de certificados, sem opção `SOFT_FAIL`.
@@ -64,6 +64,14 @@ A porta não deve ser publicada na Internet. Use rede privada e TLS/mTLS na fron
 - O servidor ainda não possui TLS/mTLS próprio, rotação automática de segredos, auditoria externa imutável, timestamping ou monitoramento operacional.
 - A API Node cliente ainda exige integração/testes ponta a ponta com este serviço; a rota pública de AFD permanece bloqueada até revisão independente do resultado e da cadeia completa.
 - A conformidade REP-P depende também da validação do AFD v004, hash tipo 7, demais documentos e requisitos operacionais; assinatura correta isoladamente não torna o sistema REP-P pronto.
+
+### Fronteira HTTPS para o cliente Node
+
+O servidor Java escuta HTTP somente na rede privada do container. Como o cliente Node exige endpoint HTTPS, use uma terminação TLS privada antes do Java. Há um modelo em [nginx.conf.example](nginx.conf.example): publica apenas `/v1/sign-detached`, limita o corpo a 34 MB e aguarda até 180 segundos para as verificações OCSP/LCR fail-closed. O certificado e a chave TLS são montados em `/run/secrets`, fora da imagem e do Git.
+
+No backend Node, configure `REP_CADES_SIGNER_URL=https://cades.internal` e o mesmo token Bearer do serviço Java por secret manager. O DNS `cades.internal` deve apontar para o proxy na rede privada. Não exponha o proxy publicamente. O modelo Nginx termina TLS e mantém o Bearer; **não habilita mTLS de cliente**. Para exigir mTLS, também é necessário provisionar certificado de cliente no backend Node e configurar o transporte HTTPS para apresentá-lo, além de validar a identidade no proxy.
+
+O cliente Node usa timeout padrão de 150 segundos, limitado e compatível com validações de revogação que podem consultar múltiplos certificados. Ajuste os timeouts do proxy e do cliente em conjunto, sem desativar a validação OCSP/LCR.
 
 ## Container privado
 
