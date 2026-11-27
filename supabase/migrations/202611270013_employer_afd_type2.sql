@@ -61,6 +61,7 @@ declare
   actor_cpf text;
   changed boolean := false;
   event_payload jsonb;
+  event_time timestamptz := clock_timestamp();
 begin
   if tg_op = 'UPDATE' then
     changed := row(
@@ -109,7 +110,7 @@ begin
   end if;
 
   event_payload := jsonb_build_object(
-    'recorded_at', public.rep_afd_format_dh(clock_timestamp(), new.timezone),
+    'recorded_at', public.rep_afd_format_dh(event_time, new.timezone),
     'responsible_cpf', actor_cpf,
     'employer_id_type', new.employer_id_type,
     'employer_document', new.employer_document,
@@ -122,7 +123,7 @@ begin
     new.id,
     '2',
     event_payload,
-    clock_timestamp(),
+    event_time,
     actor
   );
 
