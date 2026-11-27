@@ -1,11 +1,11 @@
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
-import { listRepPunchesToday, registerRepPunch } from './rep-p.js';
+import { listActiveRepEmployees, listRepPunchesToday, registerRepPunch } from './rep-p.js';
 
 const PORT = Number(process.env.PORT || 5176);
 const HOST = process.env.HOST || '0.0.0.0';
 const MAX_BODY_BYTES = 16 * 1024;
-const REP_ROUTES = new Set(['/api/rep-p/register', '/api/rep-p/today']);
+const REP_ROUTES = new Set(['/api/rep-p/employees', '/api/rep-p/register', '/api/rep-p/today']);
 
 function configured() {
   return Boolean(
@@ -42,7 +42,7 @@ function corsFor(origin) {
   if (!origin) return {};
   return {
     'access-control-allow-origin': origin,
-    'access-control-allow-methods': 'POST, OPTIONS',
+    'access-control-allow-methods': 'GET, POST, OPTIONS',
     'access-control-allow-headers': 'content-type',
     'access-control-max-age': '600',
     vary: 'Origin',
@@ -81,6 +81,7 @@ async function readJson(req) {
 }
 
 const handlers = {
+  '/api/rep-p/employees': listActiveRepEmployees,
   '/api/rep-p/register': registerRepPunch,
   '/api/rep-p/today': listRepPunchesToday,
 };
@@ -127,12 +128,24 @@ export function createRepServer() {
       res.end();
       return;
     }
-    if (req.method !== 'POST') {
-      send(res, 405, { ok: false, error: 'Método não permitido.' }, { allow: 'POST, OPTIONS' });
+    const employeeListRoute = pathname === '/api/rep-p/employees';
+    const expectedMethod = employeeListRoute ? 'GET' : 'POST';
+    if (req.method !== expectedMethod) {
+      send(res, 405, { ok: false, error: 'Método não permitido.' }, { allow: employeeListRoute ? 'GET, OPTIONS' : 'POST, OPTIONS' });
       return;
     }
     if (!configured()) {
       send(res, 503, { ok: false, error: 'Serviço REP-P não configurado.' }, corsHeaders);
+      return;
+    }
+    if (employeeListRoute) {
+      try {
+        const result = await handlers[pathname]({});
+        send(res, 200, result, corsHeaders);
+      } catch (error) {
+        console.error('Erro interno na API REP-P:', error?.code || 'sem código');
+        send(res, 500, { ok: false, error: 'Falha interna no serviço REP-P.' }, corsHeaders);
+      }
       return;
     }
     if (!/^application\/json(?:\s*;|$)/i.test(req.headers['content-type'] || '')) {
