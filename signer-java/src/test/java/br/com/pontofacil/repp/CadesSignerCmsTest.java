@@ -3,6 +3,8 @@ package br.com.pontofacil.repp;
 import static org.junit.jupiter.api.Assertions.*;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.*;
 import java.security.cert.X509Certificate;
 import java.time.Instant;
@@ -17,8 +19,10 @@ import org.bouncycastle.cms.jcajce.JcaSimpleSignerInfoVerifierBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class CadesSignerCmsTest {
+    @TempDir Path tempDir;
     @Test void createsDetachedCmsWithAllMandatoryIcpBrasilSignedAttributes() throws Exception {
         if (Security.getProvider("BC") == null) Security.addProvider(new BouncyCastleProvider());
         KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
@@ -74,6 +78,22 @@ class CadesSignerCmsTest {
         assertNotNull(info.getSignedAttributes().get(new org.bouncycastle.asn1.ASN1ObjectIdentifier("1.2.840.113549.1.9.16.2.15")));
         assertEquals("2.16.76.1.7.1.1.2.4", response.get("policyIdentifier"));
         assertEquals("2.4", response.get("policyVersion"));
+
+        if (Boolean.getBoolean("rep.cades.opensslTest")) {
+            Path signatureFile = tempDir.resolve("detached.p7s");
+            Path contentFile = tempDir.resolve("content.afd");
+            Path verifiedFile = tempDir.resolve("verified.afd");
+            Files.write(signatureFile, signature);
+            Files.write(contentFile, content);
+            Process process = new ProcessBuilder("openssl", "cms", "-verify", "-binary",
+                    "-inform", "DER", "-in", signatureFile.toString(),
+                    "-content", contentFile.toString(), "-noverify",
+                    "-out", verifiedFile.toString()).redirectErrorStream(true).start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            int exitCode = process.waitFor();
+            assertEquals(0, exitCode, "OpenSSL CMS verification failed: " + output);
+            assertArrayEquals(content, Files.readAllBytes(verifiedFile));
+        }
     }
 
     @Test void refusesContentDigestMismatchBeforeSigning() throws Exception {
