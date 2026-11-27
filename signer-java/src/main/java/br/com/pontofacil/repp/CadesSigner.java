@@ -170,8 +170,14 @@ final class CadesSigner {
 
     boolean ready() {
         Instant now = Instant.now();
-        return !policy.revoked && policy.notBefore.isBefore(now.plusSeconds(1))
-                && policy.notAfter.isAfter(now) && policy.nextUpdate.isAfter(now);
+        if (policy.revoked || !policy.notBefore.isBefore(now.plusSeconds(1))
+                || !policy.notAfter.isAfter(now) || !policy.nextUpdate.isAfter(now)) return false;
+        try {
+            signerCertificate.checkValidity();
+            return true;
+        } catch (CertificateException expiredOrNotYetValid) {
+            return false;
+        }
     }
 
     Map<String, Object> sign(String operationId, byte[] content, String claimedDigest) throws Exception {
