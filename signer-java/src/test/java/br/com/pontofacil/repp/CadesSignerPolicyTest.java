@@ -20,9 +20,13 @@ class CadesSignerPolicyTest {
     }
 
     private byte[][] fixture(boolean invalidEmbeddedHash) throws Exception {
+        return fixture(invalidEmbeddedHash, OID);
+    }
+
+    private byte[][] fixture(boolean invalidEmbeddedHash, String paOid) throws Exception {
         AlgorithmIdentifier hashAlgorithm = new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256);
         ASN1EncodableVector policyInfoFields = new ASN1EncodableVector();
-        policyInfoFields.add(new ASN1ObjectIdentifier(OID));
+        policyInfoFields.add(new ASN1ObjectIdentifier(paOid));
         policyInfoFields.add(new DERIA5String(URI));
         ASN1Sequence policyInfo = new DERSequence(policyInfoFields);
 
@@ -75,6 +79,12 @@ class CadesSignerPolicyTest {
 
     @Test void rejectsPolicyWithIncorrectEmbeddedSignPolicyHash() throws Exception {
         byte[][] fixture = fixture(true);
+        assertThrows(SecurityException.class, () -> CadesSigner.parsePolicy(fixture[1], fixture[0],
+                OID, URI, "2.4", HexFormat.of().formatHex(fixture[2])));
+    }
+
+    @Test void rejectsPaSignPolicyInfoOidThatDiffersFromLpaEntry() throws Exception {
+        byte[][] fixture = fixture(false, "2.16.76.1.7.1.1.2.3");
         assertThrows(SecurityException.class, () -> CadesSigner.parsePolicy(fixture[1], fixture[0],
                 OID, URI, "2.4", HexFormat.of().formatHex(fixture[2])));
     }
