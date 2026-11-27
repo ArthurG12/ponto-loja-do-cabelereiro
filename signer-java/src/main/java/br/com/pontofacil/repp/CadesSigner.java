@@ -516,11 +516,12 @@ final class CadesSigner implements CadesSigningService {
         String internalHashAlgorithm = ASN1ObjectIdentifier.getInstance(
                 signPolicyHashAlgorithmIdentifier.getObjectAt(0)).getId();
         ASN1Sequence policyInfo = ASN1Sequence.getInstance(paRoot.getObjectAt(1));
-        ASN1EncodableVector hashInputFields = new ASN1EncodableVector();
-        hashInputFields.add(paRoot.getObjectAt(0));
-        hashInputFields.add(paRoot.getObjectAt(1));
-        byte[] computedPolicyHash = MessageDigest.getInstance("SHA-256")
-                .digest(new DERSequence(hashInputFields).getEncoded(ASN1Encoding.DER));
+        byte[] hashAlgorithmDer = paRoot.getObjectAt(0).toASN1Primitive().getEncoded(ASN1Encoding.DER);
+        byte[] policyInfoDer = policyInfo.getEncoded(ASN1Encoding.DER);
+        byte[] hashInput = Arrays.copyOf(hashAlgorithmDer, hashAlgorithmDer.length + policyInfoDer.length);
+        System.arraycopy(policyInfoDer, 0, hashInput, hashAlgorithmDer.length, policyInfoDer.length);
+        // RFC 3125 section 3.1 excludes the outer SignPolicy SEQUENCE tag and length.
+        byte[] computedPolicyHash = MessageDigest.getInstance("SHA-256").digest(hashInput);
         if (paRoot.size() == 3) {
             byte[] embeddedPolicyHash = ASN1OctetString.getInstance(paRoot.getObjectAt(2)).getOctets();
             if (!MessageDigest.isEqual(computedPolicyHash, embeddedPolicyHash)) {
