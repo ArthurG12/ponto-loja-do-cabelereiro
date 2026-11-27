@@ -93,3 +93,13 @@ A apuração de horas não deve ser usada para folha de pagamento até ser imple
 ## Aviso importante
 
 Esta versão é para controle interno e desenvolvimento. Não é apresentada como sistema legalmente homologado/certificado de registro eletrônico de ponto. Proteja dados pessoais, especialmente documentos médicos. A foto de perfil não é reconhecimento facial. Não use biometria nesta versão.
+
+## Validação de cadeia SHA-256 em exportações por período
+
+O serializador AFD v004 aceita `initialPreviousType7Hash` ao gerar ou validar um arquivo cujo primeiro registro tipo 7 continua uma cadeia iniciada antes do período exportado. O valor deve ser o hash SHA-256 do registro tipo 7 imediatamente anterior ao primeiro registro tipo 7 incluído no arquivo. Se não houver registro anterior, omita o parâmetro.
+
+A exportação deve obter esse hash-semente diretamente do `rep_ledger`, no mesmo estabelecimento e antes do início do período. Nunca aceite a semente enviada pelo navegador. A ausência de hash, uma versão legada ou divergência na cadeia deve bloquear a geração.
+
+O vetor de referência SQL/Node usado nos testes produz `ae9d6fb9ce501d6ab4626c7df591de4682880817b1cdde141b9c1ab1e5de5c4d`. Ele confirma que as duas implementações atuais concordam para o caso testado; não substitui validação formal independente do algoritmo e do leiaute pelo MTE.
+
+A exportação HTTP continua pendente de autenticação administrativa, isolamento do estabelecimento, limites de período, assinatura CAdES detached ICP-Brasil e validação operacional. O arquivo com marcador textual, sem a assinatura real, não deve ser tratado como AFD assinado ou regularizado.
