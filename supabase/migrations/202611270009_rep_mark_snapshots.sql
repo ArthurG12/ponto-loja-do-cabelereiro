@@ -47,7 +47,7 @@ alter table public.time_marks
   check (
     employee_cpf_snapshot is not null
     and employee_cpf_snapshot ~ '^[0-9]{11}$'
-    and collector_type in ('01','02','03','04','05')
+    and collector_type is not null\n    and collector_type in ('01','02','03','04','05')
     and is_offline = false
   ) not valid;
 
