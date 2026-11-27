@@ -60,14 +60,24 @@ const remoteApi = {
     await supabase.auth.signOut();
   },
   async listActiveEmployees() {
-    const { data, error } = await supabase.rpc('list_active_employees');
-    if (error) return { ok: false, error: 'Não foi possível carregar as colaboradoras. Confira o banco de dados.', employees: [] };
-    return { ok: true, employees: data || [] };
+    if (!repApiUrl) {
+      return { ok: false, error: 'Servidor REP-P não configurado. A lista de colaboradores está indisponível.', employees: [] };
+    }
+    try {
+      const response = await fetch(`${repApiUrl}/api/rep-p/employees`, { cache: 'no-store' });
+      const result = await response.json();
+      if (!response.ok || !result?.ok) {
+        return { ok: false, error: result?.error || 'Não foi possível carregar a equipe.', employees: [] };
+      }
+      return { ok: true, employees: result.employees || [] };
+    } catch {
+      return { ok: false, error: 'Servidor REP-P indisponível. Não foi possível carregar a equipe.', employees: [] };
+    }
   },
   listStaff: remoteStaff,
-  async verifyPin(employeeId, pin) {
-    const { error } = await supabase.rpc('verify_employee_pin', { employee_uuid: employeeId, submitted_pin: pin });
-    if (error) return { ok: false, error: messageFrom(error, 'Senha inválida ou acesso indisponível.') };
+  async verifyPin() {
+    // A validação real do PIN ocorre no backend REP-P ao consultar as marcações.
+    if (!repApiUrl) return { ok: false, error: 'Servidor REP-P não configurado. A marcação está bloqueada.' };
     return { ok: true };
   },
   async todayPunches(employeeId, pin) {
@@ -92,17 +102,9 @@ const remoteApi = {
       }
     }
 
-    const { data, error } = await supabase.rpc('list_employee_punches', {
-      employee_uuid: employeeId,
-      submitted_pin: pin,
-      p_day: saoPauloParts().dayKey,
-    });
-    if (error) return { ok: false, error: messageFrom(error, 'Não foi possível carregar as marcações de hoje.') };
-
     return {
       ok: true,
-      punches: [...(data || []), ...repPunches]
-        .sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at)),
+      punches: repPunches.sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at)),
     };
   },
   async registerPunch(employeeId, pin, type, requestId) {
@@ -123,14 +125,7 @@ const remoteApi = {
       }
     }
 
-    const { data, error } = await supabase.rpc('register_punch', {
-      employee_uuid: employeeId,
-      submitted_pin: pin,
-      requested_type: type,
-      client_request_id: requestId,
-    });
-    if (error) return { ok: false, error: messageFrom(error, 'Não foi possível registrar.') };
-    return { ok: true, punch: data };
+    return { ok: false, error: 'Servidor REP-P não configurado. A marcação não foi registrada.' };
   },
   async punchesBetween(start, end) {
     const { data, error } = await supabase.from('punches').select('id,employee_id,punch_type,recorded_at,source,voided_at,void_reason').gte('recorded_at', start).lt('recorded_at', end).order('recorded_at');
