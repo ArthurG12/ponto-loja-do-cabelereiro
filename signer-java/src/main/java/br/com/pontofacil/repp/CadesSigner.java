@@ -317,7 +317,7 @@ final class CadesSigner {
         return Set.copyOf(anchors);
     }
 
-    private static Policy parsePolicy(byte[] lpaDer, byte[] policyDer,
+    static Policy parsePolicy(byte[] lpaDer, byte[] policyDer,
             String expectedOid, String expectedUri, String version, String attributeHashHex) throws Exception {
         ASN1Sequence root = ASN1Sequence.getInstance(ASN1Primitive.fromByteArray(lpaDer));
         int offset = root.size() == 3 ? 1 : 0;
@@ -402,6 +402,6 @@ final class CadesSigner {
         return DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
                 .withZone(ZoneOffset.UTC).format(value);
     }
-    private record Policy(String oid, String version, Instant notBefore, Instant notAfter,
+    record Policy(String oid, String version, Instant notBefore, Instant notAfter,
             Instant nextUpdate, boolean revoked, byte[] attributeHash, String lpaSha256) {}
 }
