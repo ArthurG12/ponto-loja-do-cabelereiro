@@ -125,7 +125,8 @@ begin
   if has_function_privilege('anon', 'public.append_rep_afd_event(uuid,text,jsonb,timestamptz,uuid)', 'EXECUTE')
      or has_function_privilege('authenticated', 'public.append_rep_afd_event(uuid,text,jsonb,timestamptz,uuid)', 'EXECUTE')
      or has_function_privilege('anon', 'public.register_time_mark(uuid,text,public.punch_kind,uuid,text,text)', 'EXECUTE')
-     or has_function_privilege('authenticated', 'public.register_time_mark(uuid,text,public.punch_kind,uuid,text,text)', 'EXECUTE')\n     or has_function_privilege('anon', 'public.admin_save_employee(uuid,text,text,text,boolean,text)', 'EXECUTE') then
+     or has_function_privilege('authenticated', 'public.register_time_mark(uuid,text,public.punch_kind,uuid,text,text)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.admin_save_employee(uuid,text,text,text,boolean,text)', 'EXECUTE') then
     raise exception 'Função interna REP-P executável por usuário não confiável.';
   end if;
 end;
