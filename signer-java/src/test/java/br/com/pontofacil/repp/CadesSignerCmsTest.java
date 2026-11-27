@@ -57,6 +57,8 @@ class CadesSignerCmsTest {
 
         byte[] content = "AFD test fixture\r\n".getBytes(StandardCharsets.ISO_8859_1);
         String digest = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
+        assertThrows(SecurityException.class, () -> signer.sign(
+                "123e4567-e89b-12d3-a456-426614174000", content, digest));
         Map<String, Object> response = signer.signInternal("123e4567-e89b-12d3-a456-426614174000", content, digest);
         byte[] signature = Base64.getDecoder().decode((String) response.get("signature"));
         CMSSignedData cms = new CMSSignedData(new CMSProcessableByteArray(content), signature);
