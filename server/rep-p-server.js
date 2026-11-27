@@ -1,11 +1,11 @@
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
-import { listActiveRepEmployees, listRepPunchesToday, recordRepServiceEvent, registerRepPunch } from './rep-p.js';
+import { authenticateRepAdmin, listActiveRepEmployees, listRepPunchesToday, prepareRepAfdExport, recordRepServiceEvent, registerRepPunch } from './rep-p.js';
 
 const PORT = Number(process.env.PORT || 5176);
 const HOST = process.env.HOST || '0.0.0.0';
 const MAX_BODY_BYTES = 16 * 1024;
-const REP_ROUTES = new Set(['/api/rep-p/employees', '/api/rep-p/register', '/api/rep-p/today']);
+const REP_ROUTES = new Set(['/api/rep-p/employees', '/api/rep-p/register', '/api/rep-p/today', '/api/rep-p/afd']);
 let serviceAvailableRecorded = false;
 
 function configured() {
@@ -49,7 +49,7 @@ function corsFor(origin) {
   return {
     'access-control-allow-origin': origin,
     'access-control-allow-methods': 'GET, POST, OPTIONS',
-    'access-control-allow-headers': 'content-type',
+    'access-control-allow-headers': 'authorization, content-type',
     'access-control-max-age': '600',
     vary: 'Origin',
   };
@@ -92,11 +92,13 @@ const handlers = {
   '/api/rep-p/today': listRepPunchesToday,
 };
 
-export function createRepServer() {
+export function createRepServer({ readiness = ready, authenticateAdmin = authenticateRepAdmin, prepareAfd = prepareRepAfdExport } = {}) {
   const server = createServer(async (req, res) => {
     let pathname;
+    let requestUrl;
     try {
-      pathname = new URL(req.url || '/', 'http://localhost').pathname;
+      requestUrl = new URL(req.url || '/', 'http://localhost');
+      pathname = requestUrl.pathname;
     } catch {
       send(res, 400, { ok: false, error: 'Solicitação inválida.' });
       return;
@@ -135,13 +137,52 @@ export function createRepServer() {
       return;
     }
     const employeeListRoute = pathname === '/api/rep-p/employees';
-    const expectedMethod = employeeListRoute ? 'GET' : 'POST';
+    const afdRoute = pathname === '/api/rep-p/afd';
+    const expectedMethod = employeeListRoute || afdRoute ? 'GET' : 'POST';
     if (req.method !== expectedMethod) {
       send(res, 405, { ok: false, error: 'Método não permitido.' }, { allow: employeeListRoute ? 'GET, OPTIONS' : 'POST, OPTIONS' });
       return;
     }
-    if (!ready()) {
+    if (!readiness()) {
       send(res, 503, { ok: false, error: 'Serviço REP-P não configurado ou evento de disponibilidade ainda não registrado.' }, corsHeaders);
+      return;
+    }
+    if (afdRoute) {
+      const authorization = String(req.headers.authorization || '');
+      const bearer = authorization.match(/^Bearer\\s+([^\\s]+)$/i);
+      if (!bearer) {
+        send(res, 401, { ok: false, error: 'Autenticação necessária.' }, corsHeaders);
+        return;
+      }
+      try {
+        const auth = await authenticateAdmin(bearer[1]);
+        if (auth?.unavailable) {
+          send(res, 503, { ok: false, error: 'Autenticação administrativa indisponível.' }, corsHeaders);
+          return;
+        }
+        if (auth?.ok !== true) {
+          send(res, 401, { ok: false, error: 'Credenciais inválidas ou acesso não autorizado.' }, corsHeaders);
+          return;
+        }
+        const prepared = await prepareAfd({
+          startDate: requestUrl.searchParams.get('start'),
+          endDate: requestUrl.searchParams.get('end'),
+          actorId: auth.userId,
+        });
+        if (!prepared?.buffer || !Buffer.isBuffer(prepared.buffer)) {
+          send(res, 503, { ok: false, error: 'Exportação AFD indisponível.' }, corsHeaders);
+          return;
+        }
+        // A geração do arquivo é deliberadamente bloqueada até existir assinatura CAdES detached ICP-Brasil real.
+        send(res, 503, { ok: false, error: 'AFD validado, mas a assinatura CAdES detached ICP-Brasil ainda não está configurada. Nenhum arquivo foi disponibilizado.' }, corsHeaders);
+      } catch (error) {
+        if (error?.statusCode) {
+          send(res, error.statusCode, { ok: false, error: error.message }, corsHeaders);
+          return;
+        }
+        console.error('Falha na preparação protegida do AFD:', error?.code || 'sem código');
+        send(res, 503, { ok: false, error: 'AFD não pôde ser preparado com segurança. Verifique os dados normativos e a cadeia do livro.' }, corsHeaders);
+      }
       return;
     }
     if (employeeListRoute) {
