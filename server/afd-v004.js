@@ -21,6 +21,7 @@ function numericField(value, width, label, { required = false, pad = '0' } = {})
   assert(!required || valueText.length > 0, `${label} obrigatório no AFD.`);
   assert(/^\d*$/.test(valueText), `${label} deve conter apenas dígitos.`);
   assert(valueText.length <= width, `${label} excede ${width} posições.`);
+  if (!valueText && !required) return ' '.repeat(width);
   return pad === ' ' ? valueText.padEnd(width, ' ') : valueText.padStart(width, '0');
 }
 
@@ -220,6 +221,7 @@ export function validateAfdV004(input) {
   if (trailer.length !== 64 || trailer.slice(0, 9) !== '999999999' || trailer.at(-1) !== '9') errors.push('Trailer AFD inválido.');
   const recordLines = lines.slice(1, -2);
   let previous = 0;
+  let previousType7Hash = '';
   const counts = { '2': 0, '3': 0, '4': 0, '5': 0, '6': 0, '7': 0 };
   for (const line of recordLines) {
     const nsr = Number(line.slice(0, 9));
@@ -231,7 +233,12 @@ export function validateAfdV004(input) {
     const expectedLength = { '2': 331, '4': 73, '5': 118, '6': 36, '7': 137 }[type];
     if (line.length !== expectedLength) errors.push(`Tamanho incorreto para registro tipo ${type}.`);
     if (['2', '4', '5'].includes(type) && line.slice(-4) !== crc16Kermit(line.slice(0, -4))) errors.push(`CRC-16/KERMIT inválido no registro tipo ${type}.`);
-    if (type === '7' && !/^[0-9a-f]{64}$/.test(line.slice(73, 137))) errors.push('Hash SHA-256 inválido no registro tipo 7.');
+    if (type === '7') {
+      const actualHash = line.slice(73, 137);
+      const expectedHash = createHash('sha256').update(Buffer.from(line.slice(0, 73) + previousType7Hash, 'latin1')).digest('hex');
+      if (!/^[0-9a-f]{64}$/.test(actualHash) || actualHash !== expectedHash) errors.push('Hash SHA-256 inválido ou cadeia quebrada no registro tipo 7.');
+      previousType7Hash = actualHash;
+    }
   }
   const actualCounts = ['2', '3', '4', '5', '6', '7'].map((type) => String(counts[type]).padStart(9, '0')).join('');
   if (trailer.slice(9, 63) !== actualCounts) errors.push('Contadores do trailer não correspondem aos registros.');
