@@ -92,6 +92,7 @@ final class CadesSigner {
         Path policyPath = requiredPath(e, "REP_CADES_POLICY_DER");
         Path keyStorePath = requiredPath(e, "REP_CADES_KEYSTORE");
         String keyPassword = required(e, "REP_CADES_KEYSTORE_PASSWORD");
+        String expectedTrustAnchorsHash = hex(required(e, "REP_CADES_TRUST_ANCHORS_SHA256"));
         String expectedLpaHash = hex(required(e, "REP_CADES_LPA_SHA256"));
         String expectedLpaSignatureHash = hex(required(e, "REP_CADES_LPA_SIGNATURE_SHA256"));
         String expectedFingerprint = hex(required(e, "REP_CADES_CERT_SHA256"));
@@ -106,6 +107,9 @@ final class CadesSigner {
             throw new IllegalStateException("Signer production identity or policy configuration is invalid");
         }
 
+        if (!sha256(Files.readAllBytes(trustPath)).equals(expectedTrustAnchorsHash)) {
+            throw new SecurityException("Trust-anchor bundle does not match the independently provisioned SHA-256 pin");
+        }
         Set<TrustAnchor> anchors = loadTrustAnchors(trustPath);
         byte[] lpa = Files.readAllBytes(lpaPath);
         byte[] lpaSignature = Files.readAllBytes(lpaSignaturePath);
