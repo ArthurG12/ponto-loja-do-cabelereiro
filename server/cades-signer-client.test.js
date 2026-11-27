@@ -55,7 +55,7 @@ test('sends exact AFD bytes and accepts only a complete detached CAdES attestati
   let requestBody;
   let requestOptions;
   const result = await requestCadesDetachedSignature(content, config(async (url, options) => {
-    assert.equal(url, 'https://cades.internal.example/v1/sign-detached');
+    assert.equal(String(url), 'https://cades.internal.example/v1/sign-detached');
     requestOptions = options;
     requestBody = JSON.parse(options.body);
     return new Response(JSON.stringify(validResponse(requestBody)), {
