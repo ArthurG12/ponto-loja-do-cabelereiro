@@ -28,9 +28,13 @@ public final class SignerServer {
     }
 
     boolean authorized(String authorization) {
+        return matchesBearer(serviceToken, authorization);
+    }
+
+    static boolean matchesBearer(byte[] expectedToken, String authorization) {
         if (authorization == null || !authorization.startsWith("Bearer ")) return false;
         byte[] supplied = authorization.substring(7).getBytes(StandardCharsets.UTF_8);
-        return MessageDigest.isEqual(serviceToken, supplied);
+        return MessageDigest.isEqual(expectedToken, supplied);
     }
 
     void start(String bindHost, int port) throws IOException {
