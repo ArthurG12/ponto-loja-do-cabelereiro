@@ -140,7 +140,7 @@ export function createRepServer({ readiness = ready, authenticateAdmin = authent
     const afdRoute = pathname === '/api/rep-p/afd';
     const expectedMethod = employeeListRoute || afdRoute ? 'GET' : 'POST';
     if (req.method !== expectedMethod) {
-      send(res, 405, { ok: false, error: 'Método não permitido.' }, { allow: employeeListRoute ? 'GET, OPTIONS' : 'POST, OPTIONS' });
+      send(res, 405, { ok: false, error: 'Método não permitido.' }, { allow: employeeListRoute || afdRoute ? 'GET, OPTIONS' : 'POST, OPTIONS' });
       return;
     }
     if (!readiness()) {
