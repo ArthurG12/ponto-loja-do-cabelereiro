@@ -1,5 +1,6 @@
 package br.com.pontofacil.repp;
 
+import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -116,7 +117,9 @@ public final class SignerServer {
         String contentLength = exchange.getRequestHeaders().getFirst("Content-Length");
         if (contentLength != null) {
             try {
-                if (Long.parseLong(contentLength) > MAX_REQUEST_BYTES) {
+                long length = Long.parseLong(contentLength);
+                if (length < 0) throw new NumberFormatException("negative Content-Length");
+                if (length > MAX_REQUEST_BYTES) {
                     respond(exchange, 413, "{\"error\":\"request_too_large\"}");
                     return;
                 }
@@ -133,24 +136,42 @@ public final class SignerServer {
             respond(exchange, 413, "{\"error\":\"request_too_large\"}");
             return;
         }
+
+        final JsonNode request;
+        final String operationId;
+        final String contentBase64;
+        final String contentSha256;
         try {
-            JsonNode request = parseRequest(body);
-            String operationId = requiredText(request, "operationId");
-            String contentBase64 = requiredText(request, "content");
-            String contentSha256 = requiredText(request, "contentSha256");
-            if (!"CAdES-detached".equals(requiredText(request, "format"))
+            request = parseRequest(body);
+            operationId = requiredText(request, "operationId");
+            contentBase64 = requiredText(request, "content");
+            contentSha256 = requiredText(request, "contentSha256");
+            if (!operationId.matches("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+                    || !"CAdES-detached".equals(requiredText(request, "format"))
                     || !"application/octet-stream".equals(requiredText(request, "contentType"))
                     || !contentSha256.matches("(?i)[a-f0-9]{64}")
                     || !contentBase64.matches("(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?")) {
-                respond(exchange, 400, "{\"error\":\"invalid_request\"}");
-                return;
+                throw new IllegalArgumentException("Invalid request fields");
             }
-            byte[] content = Base64.getDecoder().decode(contentBase64);
+        } catch (Exception invalidRequest) {
+            respond(exchange, 400, "{\"error\":\"invalid_request\"}");
+            return;
+        }
+
+        final byte[] content;
+        try {
+            content = Base64.getDecoder().decode(contentBase64);
             if (content.length == 0 || content.length > 25_000_000
                     || !Base64.getEncoder().encodeToString(content).equals(contentBase64)) {
                 respond(exchange, 400, "{\"error\":\"invalid_content\"}");
                 return;
             }
+        } catch (IllegalArgumentException invalidBase64) {
+            respond(exchange, 400, "{\"error\":\"invalid_content\"}");
+            return;
+        }
+
+        try {
             var result = signer.sign(operationId, content, contentSha256);
             respond(exchange, 200, JSON.writeValueAsString(result));
         } catch (Exception rejected) {
