@@ -1,7 +1,8 @@
 import { createServer } from 'node:http';
 import { store } from './db.js';
+import { registerRepPunch } from './rep-p.js';
 
-const PORT = 5176;
+const PORT = Number(process.env.PORT || 5176);
 
 function send(res, status, body, cookie) {
   const headers = { 'content-type': 'application/json; charset=utf-8' };
@@ -72,6 +73,7 @@ const routes = {
   '/api/pin/verify': (body) => store.verifyPin(body.employeeId, body.pin),
   '/api/punches/today': (body) => store.todayPunches(body.employeeId, body.pin),
   '/api/punches/register': (body) => store.registerPunch(body.employeeId, body.pin, body.type, body.requestId),
+  '/api/rep-p/register': (body) => registerRepPunch(body),
   '/api/punches/between': (body, token) => (store.adminSession(token) ? store.punchesBetween(body.start, body.end) : { ok: false, error: 'Entre como administrador.', punches: [] }),
   '/api/justifications/between': (body, token) => (store.adminSession(token) ? store.justificationsBetween(body.start, body.end) : { ok: false, error: 'Entre como administrador.', justifications: [] }),
   '/api/employees/save': (body, token) => (store.adminSession(token) ? store.saveEmployee(body) : { ok: false, error: 'Entre como administrador.' }),
