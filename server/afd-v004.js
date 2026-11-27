@@ -25,6 +25,40 @@ function numericField(value, width, label, { required = false, pad = '0' } = {})
   return pad === ' ' ? valueText.padEnd(width, ' ') : valueText.padStart(width, '0');
 }
 
+function employerIdentifier(value, type, label) {
+  const digits = String(value ?? '');
+  const expected = type === '1' ? 14 : 11;
+  assert(new RegExp(`^\\\\d{${expected}}import { createHash } from 'node:crypto';
+
+const SIGNATURE_MARKER = 'ASSINATURA_DIGITAL_EM_ARQUIVO_P7S';
+const RECORD_TYPES = new Set(['2', '4', '5', '6', '7']);
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+function textField(value, width, label, { required = false } = {}) {
+  const valueText = value == null ? '' : String(value);
+  assert(!required || valueText.trim().length > 0, `${label} obrigatório no AFD.`);
+  assert(!/[\r\n]/.test(valueText), `${label} não pode conter quebra de linha.`);
+  assert([...valueText].every((char) => char.codePointAt(0) <= 255), `${label} contém caractere fora de ISO-8859-1.`);
+  assert(Buffer.byteLength(valueText, 'latin1') <= width, `${label} excede ${width} posições.`);
+  return valueText.padEnd(width, ' ');
+}
+
+function numericField(value, width, label, { required = false, pad = '0' } = {}) {
+  const valueText = value == null ? '' : String(value);
+  assert(!required || valueText.length > 0, `${label} obrigatório no AFD.`);
+  assert(/^\d*$/.test(valueText), `${label} deve conter apenas dígitos.`);
+  assert(valueText.length <= width, `${label} excede ${width} posições.`);
+  if (!valueText && !required) return ' '.repeat(width);
+  return pad === ' ' ? valueText.padEnd(width, ' ') : valueText.padStart(width, '0');
+}
+
+).test(digits), `${label} deve conter exatamente ${expected} dígitos.`);
+  return digits.padStart(14, '0');
+}
+
 function nsrField(value) {
   const nsr = Number(value);
   assert(Number.isSafeInteger(nsr) && nsr >= 1 && nsr <= 999999999, 'NSR inválido no AFD.');
@@ -68,12 +102,10 @@ function withCrc(prefix) {
 function serializeHeader(header) {
   const employerType = String(header.employer_id_type || '');
   assert(['1', '2'].includes(employerType), 'Tipo de identificador do empregador inválido.');
-  const employerDocument = numericField(header.employer_document, 14, 'CNPJ/CPF do empregador', { required: true });
-  const employerCpf = employerType === '2' ? employerDocument.slice(-11) : null;
-  if (employerCpf) assert(employerCpf.length === 11, 'CPF do empregador inválido.');
+  const employerDocument = employerIdentifier(header.employer_document, employerType, 'CNPJ/CPF do empregador');
   const developerType = String(header.developer_id_type || '');
   assert(['1', '2'].includes(developerType), 'Tipo de identificador do desenvolvedor inválido.');
-  const developerDocument = numericField(header.developer_document, 14, 'CPF/CNPJ do desenvolvedor', { required: true });
+  const developerDocument = employerIdentifier(header.developer_document, developerType, 'CPF/CNPJ do desenvolvedor');
   const inpi = numericField(header.inpi_registration, 17, 'Registro INPI', { required: true });
   assert(inpi !== '00000000000000000', 'Registro INPI ainda não foi informado.');
   const startDate = String(header.start_date || '');
@@ -101,7 +133,7 @@ function serializeRecord(record, timezone) {
     const employerType = String(payload.employer_id_type || '');
     assert(['1', '2'].includes(employerType), 'Tipo de empregador ausente no registro AFD tipo 2.');
     const prefix = nsr + '2' + dh(payload.recorded_at, timezone) + responsible + employerType
-      + numericField(payload.employer_document, 14, 'Documento do empregador', { required: true })
+      + employerIdentifier(payload.employer_document, employerType, 'Documento do empregador')
       + numericField(payload.cno_caepf, 14, 'CNO/CAEPF')
       + textField(payload.legal_name, 150, 'Razão social/nome', { required: true })
       + textField(payload.service_location, 100, 'Local de prestação', { required: true });
