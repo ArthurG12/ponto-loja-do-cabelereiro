@@ -28,7 +28,7 @@ function messageFrom(error, fallback) {
 }
 
 async function remoteStaff() {
-  const { data, error } = await supabase.from('employees').select('id,full_name,schedule_code,active,photo_url').order('full_name');
+  const { data, error } = await supabase.from('employees').select('id,full_name,schedule_code,active,photo_url,cpf').order('full_name');
   if (error) return { ok: false, error: messageFrom(error, 'Não foi possível carregar a equipe.'), employees: [] };
   return { ok: true, employees: data || [] };
 }
@@ -166,6 +166,7 @@ const remoteApi = {
       p_schedule: input.schedule_code,
       p_pin: input.pin || null,
       p_active: input.active !== false,
+      p_cpf: String(input.cpf || '').replace(/\D/g, ''),
     });
     if (error) return { ok: false, error: messageFrom(error, 'Não foi possível salvar a colaboradora.') };
     return { ok: true };
