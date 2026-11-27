@@ -10,7 +10,7 @@ begin;
 create or replace function public.rep_afd_format_dh(p_at timestamptz, p_timezone text)
 returns text
 language plpgsql
-immutable
+stable
 strict
 set search_path = pg_catalog
 as $format$
@@ -43,7 +43,7 @@ create or replace function public.rep_afd_v004_hash_input(
   p_timezone text
 ) returns text
 language plpgsql
-immutable
+stable
 set search_path = public, pg_catalog
 as $input$
 begin
@@ -83,7 +83,7 @@ create or replace function public.rep_afd_v004_mark_hash(
   p_timezone text
 ) returns text
 language sql
-immutable
+stable
 set search_path = public, extensions
 as $hash$
   select encode(
