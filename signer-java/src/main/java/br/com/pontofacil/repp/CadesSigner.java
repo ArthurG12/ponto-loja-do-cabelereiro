@@ -174,8 +174,9 @@ final class CadesSigner {
 
     boolean ready() {
         Instant now = Instant.now();
-        if (policy.revoked || policy.notBefore.isAfter(now)
-                || !policy.notAfter.isAfter(now) || !policy.nextUpdate.isAfter(now)) return false;
+        if ((policy.revocationDate != null && !policy.revocationDate.isAfter(now))
+                || policy.notBefore.isAfter(now) || !policy.notAfter.isAfter(now)
+                || !policy.nextUpdate.isAfter(now)) return false;
         try {
             signerCertificate.checkValidity();
             return true;
@@ -394,6 +395,9 @@ final class CadesSigner {
             String expectedOid, String expectedUri, String version, String attributeHashHex) throws Exception {
         ASN1Sequence root = ASN1Sequence.getInstance(ASN1Primitive.fromByteArray(lpaDer));
         int offset = root.size() == 3 ? 1 : 0;
+        if (offset == 1 && !ASN1Integer.getInstance(root.getObjectAt(0)).hasValue(BigInteger.ZERO)) {
+            throw new SecurityException("Unsupported LPA version");
+        }
         if (root.size() - offset != 2) throw new SecurityException("Unsupported LPA ASN.1 structure");
         ASN1Sequence policyInfos = ASN1Sequence.getInstance(root.getObjectAt(offset));
         Instant nextUpdate = asInstant(root.getObjectAt(offset + 1));
@@ -412,7 +416,7 @@ final class CadesSigner {
         boolean found = false;
         Instant notBefore = null;
         Instant notAfter = null;
-        boolean revoked = false;
+        Instant revocationDate = null;
         String matchedUri = null;
         for (ASN1Encodable item : policyInfos) {
             ASN1Sequence info = ASN1Sequence.getInstance(item);
@@ -439,13 +443,13 @@ final class CadesSigner {
                 matchedUri = uri;
                 notBefore = candidateStart;
                 notAfter = candidateEnd;
-                revoked = revocation != null && !revocation.isAfter(Instant.now());
+                revocationDate = revocation;
             }
         }
         if (!found || notBefore == null || notAfter == null || !expectedUri.equals(matchedUri)) {
             throw new SecurityException("Configured policy OID/URI is absent from signed LPA");
         }
-        return new Policy(expectedOid, version, notBefore, notAfter, nextUpdate, revoked,
+        return new Policy(expectedOid, version, notBefore, notAfter, nextUpdate, revocationDate,
                 configuredAttributeHash, sha256(lpaDer));
     }
 
