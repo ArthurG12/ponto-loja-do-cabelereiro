@@ -55,11 +55,12 @@ final class CadesSigner {
     private final String fingerprint;
     private final String developerCpf;
     private final String environment;
+    private final String policyVersion;
 
     private CadesSigner(PrivateKey privateKey, X509Certificate signerCertificate,
             List<X509Certificate> signerChain, Set<TrustAnchor> trustAnchors,
             String signatureAlgorithm, Policy policy, String fingerprint,
-            String developerCpf, String environment) {
+            String developerCpf, String environment, String policyVersion) {
         this.privateKey = privateKey;
         this.signerCertificate = signerCertificate;
         this.signerChain = signerChain;
@@ -69,6 +70,7 @@ final class CadesSigner {
         this.fingerprint = fingerprint;
         this.developerCpf = developerCpf;
         this.environment = environment;
+        this.policyVersion = policyVersion;
     }
 
     static CadesSigner fromEnvironment() throws Exception {
@@ -79,17 +81,18 @@ final class CadesSigner {
         Path lpaSignaturePath = requiredPath(e, "REP_CADES_LPA_P7S");
         Path policyPath = requiredPath(e, "REP_CADES_POLICY_DER");
         Path keyStorePath = requiredPath(e, "REP_CADES_KEYSTORE");
-        String trustPassword = required(e, "REP_CADES_TRUSTSTORE_PASSWORD");
         String keyPassword = required(e, "REP_CADES_KEYSTORE_PASSWORD");
         String expectedLpaHash = hex(required(e, "REP_CADES_LPA_SHA256"));
         String expectedLpaSignatureHash = hex(required(e, "REP_CADES_LPA_SIGNATURE_SHA256"));
         String expectedFingerprint = hex(required(e, "REP_CADES_CERT_SHA256"));
         String policyOid = required(e, "REP_CADES_POLICY_OID");
+        String policyUri = required(e, "REP_CADES_POLICY_URI");
+        String policyVersion = required(e, "REP_CADES_POLICY_VERSION");
         String policyAttributeHash = hex(required(e, "REP_CADES_POLICY_ATTRIBUTE_SHA256"));
         String cpf = digits(required(e, "REP_CADES_DEVELOPER_CPF"));
         String environment = required(e, "REP_CADES_ENVIRONMENT");
-        if (!environment.equals("production") || cpf.length() != 11
-                || !policyOid.matches("\\d+(?:\\.\\d+){2,}")) {
+        if (!environment.equals("production") || cpf.length() != 11 || !policyVersion.equals("2.4")
+                || !policyOid.matches("\\d+(?:\\.\\d+){2,}") || !policyUri.startsWith("https://")) {
             throw new IllegalStateException("Signer production identity or policy configuration is invalid");
         }
 
@@ -102,7 +105,7 @@ final class CadesSigner {
             throw new SecurityException("LPA artifacts do not match the independently provisioned SHA-256 pins");
         }
         verifyDetachedCms(lpa, lpaSignature, anchors, true);
-        Policy policy = parsePolicy(lpa, policyDer, policyOid, policyAttributeHash);
+        Policy policy = parsePolicy(lpa, policyDer, policyOid, policyUri, policyVersion, policyAttributeHash);
         if (!policy.nextUpdate.isAfter(Instant.now())
                 || !policy.notBefore.isBefore(Instant.now().plusSeconds(1))
                 || !policy.notAfter.isAfter(Instant.now())
@@ -152,7 +155,7 @@ final class CadesSigner {
                 : key instanceof ECKey ? "SHA256withECDSA" : null;
         if (algorithm == null) throw new SecurityException("Unsupported signing key algorithm");
         return new CadesSigner(key, leaf, chain, anchors, algorithm, policy,
-                actualFingerprint, cpf, environment);
+                actualFingerprint, cpf, environment, policyVersion);
     }
 
     boolean ready() { return true; }
@@ -202,7 +205,7 @@ final class CadesSigner {
         result.put("signature", Base64.getEncoder().encodeToString(signature));
         result.put("signerCertificateFingerprint", fingerprint);
         result.put("policyIdentifier", policy.oid);
-        result.put("policyVersion", "2.4");
+        result.put("policyVersion", policyVersion);
         result.put("policyValidFrom", iso(policy.notBefore));
         result.put("policyValidUntil", iso(policy.notAfter));
         result.put("lpaNextUpdate", iso(policy.nextUpdate));
@@ -315,17 +318,29 @@ final class CadesSigner {
     }
 
     private static Policy parsePolicy(byte[] lpaDer, byte[] policyDer,
-            String expectedOid, String attributeHashHex) throws Exception {
+            String expectedOid, String expectedUri, String version, String attributeHashHex) throws Exception {
         ASN1Sequence root = ASN1Sequence.getInstance(ASN1Primitive.fromByteArray(lpaDer));
         int offset = root.size() == 3 ? 1 : 0;
         if (root.size() - offset != 2) throw new SecurityException("Unsupported LPA ASN.1 structure");
         ASN1Sequence policyInfos = ASN1Sequence.getInstance(root.getObjectAt(offset));
         Instant nextUpdate = asInstant(root.getObjectAt(offset + 1));
         byte[] policyHash = MessageDigest.getInstance("SHA-256").digest(policyDer);
+        ASN1Sequence paRoot = ASN1Sequence.getInstance(ASN1Primitive.fromByteArray(policyDer));
+        if (paRoot.size() < 2) throw new SecurityException("CAdES policy DER structure is incomplete");
+        ASN1Sequence internalHash = ASN1Sequence.getInstance(paRoot.getObjectAt(1));
+        String internalHashAlgorithm = ASN1ObjectIdentifier.getInstance(
+                ASN1Sequence.getInstance(internalHash.getObjectAt(0)).getObjectAt(0)).getId();
+        byte[] internalPolicyHash = ASN1OctetString.getInstance(internalHash.getObjectAt(1)).getOctets();
+        byte[] configuredAttributeHash = HexFormat.of().parseHex(attributeHashHex);
+        if (!SHA256_OID.equals(internalHashAlgorithm)
+                || !MessageDigest.isEqual(internalPolicyHash, configuredAttributeHash)) {
+            throw new SecurityException("Configured CAdES signature-policy hash differs from the hash embedded in the PA");
+        }
         boolean found = false;
         Instant notBefore = null;
         Instant notAfter = null;
         boolean revoked = false;
+        String matchedUri = null;
         for (ASN1Encodable item : policyInfos) {
             ASN1Sequence info = ASN1Sequence.getInstance(item);
             int i = 0;
@@ -337,7 +352,7 @@ final class CadesSigner {
                     || info.getObjectAt(i) instanceof ASN1GeneralizedTime;
             Instant revocation = hasRevocation ? asInstant(info.getObjectAt(i++)) : null;
             String oid = ASN1ObjectIdentifier.getInstance(info.getObjectAt(i++)).getId();
-            i++; // policy URI
+            String uri = ASN1IA5String.getInstance(info.getObjectAt(i++)).getString();
             ASN1Sequence hashInfo = ASN1Sequence.getInstance(info.getObjectAt(i));
             String hashAlgorithm = ASN1ObjectIdentifier.getInstance(
                     ASN1Sequence.getInstance(hashInfo.getObjectAt(0)).getObjectAt(0)).getId();
@@ -348,14 +363,17 @@ final class CadesSigner {
                     throw new SecurityException("LPA policy DER hash or algorithm mismatch");
                 }
                 found = true;
+                matchedUri = uri;
                 notBefore = candidateStart;
                 notAfter = candidateEnd;
                 revoked = revocation != null && !revocation.isAfter(Instant.now());
             }
         }
-        if (!found || notBefore == null || notAfter == null) throw new SecurityException("Configured policy OID is absent from signed LPA");
-        return new Policy(expectedOid, notBefore, notAfter, nextUpdate, revoked,
-                HexFormat.of().parseHex(attributeHashHex), sha256(lpaDer));
+        if (!found || notBefore == null || notAfter == null || !expectedUri.equals(matchedUri)) {
+            throw new SecurityException("Configured policy OID/URI is absent from signed LPA");
+        }
+        return new Policy(expectedOid, version, notBefore, notAfter, nextUpdate, revoked,
+                configuredAttributeHash, sha256(lpaDer));
     }
 
     private static Instant asInstant(ASN1Encodable value) throws Exception {
@@ -384,6 +402,6 @@ final class CadesSigner {
         return DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
                 .withZone(ZoneOffset.UTC).format(value);
     }
-    private record Policy(String oid, Instant notBefore, Instant notAfter,
+    private record Policy(String oid, String version, Instant notBefore, Instant notAfter,
             Instant nextUpdate, boolean revoked, byte[] attributeHash, String lpaSha256) {}
 }
