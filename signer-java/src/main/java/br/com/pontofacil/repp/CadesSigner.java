@@ -59,11 +59,14 @@ final class CadesSigner {
     private final String developerCpf;
     private final String environment;
     private final String policyVersion;
+    private final byte[] lpaDer;
+    private final byte[] lpaSignature;
 
     CadesSigner(PrivateKey privateKey, X509Certificate signerCertificate,
             List<X509Certificate> signerChain, Set<TrustAnchor> trustAnchors,
             String signatureAlgorithm, Policy policy, String fingerprint,
-            String developerCpf, String environment, String policyVersion) {
+            String developerCpf, String environment, String policyVersion,
+            byte[] lpaDer, byte[] lpaSignature) {
         this.privateKey = privateKey;
         this.signerCertificate = signerCertificate;
         this.signerChain = signerChain;
@@ -74,6 +77,8 @@ final class CadesSigner {
         this.developerCpf = developerCpf;
         this.environment = environment;
         this.policyVersion = policyVersion;
+        this.lpaDer = lpaDer.clone();
+        this.lpaSignature = lpaSignature.clone();
     }
 
     static CadesSigner fromEnvironment() throws Exception {
@@ -158,10 +163,14 @@ final class CadesSigner {
                 : key instanceof ECKey ? "SHA256withECDSA" : null;
         if (algorithm == null) throw new SecurityException("Unsupported signing key algorithm");
         return new CadesSigner(key, leaf, chain, anchors, algorithm, policy,
-                actualFingerprint, cpf, environment, policyVersion);
+                actualFingerprint, cpf, environment, policyVersion, lpa, lpaSignature);
     }
 
-    boolean ready() { return true; }
+    boolean ready() {
+        Instant now = Instant.now();
+        return !policy.revoked && policy.notBefore.isBefore(now.plusSeconds(1))
+                && policy.notAfter.isAfter(now) && policy.nextUpdate.isAfter(now);
+    }
 
     Map<String, Object> sign(String operationId, byte[] content, String claimedDigest) throws Exception {
         if (content == null || content.length == 0 || content.length > 25_000_000
@@ -170,6 +179,9 @@ final class CadesSigner {
         }
         String digest = sha256(content);
         if (!digest.equalsIgnoreCase(claimedDigest)) throw new SecurityException("Content digest mismatch");
+        if (!ready()) throw new SecurityException("CAdES policy or LPA is no longer current");
+        verifyDetachedCms(lpaDer, lpaSignature, trustAnchors, true);
+        validatePath(signerCertificate, signerChain, trustAnchors);
 
         byte[] certHash = MessageDigest.getInstance("SHA-256").digest(signerCertificate.getEncoded());
         ESSCertIDv2 essCert = new ESSCertIDv2(certHash);
