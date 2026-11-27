@@ -167,13 +167,18 @@ export async function recordRepServiceEvent(eventCode) {
   if (!['07', '08'].includes(eventCode)) {
     return { ok: false, error: 'Código de transição de serviço inválido.' };
   }
-  const { data, error } = await supabase.rpc('record_rep_service_event', {
-    p_establishment_id: establishmentId,
-    p_event_code: eventCode,
-  });
-  if (error) {
-    console.error('Falha ao registrar evento de disponibilidade REP-P:', error.code || 'sem código');
+  try {
+    const { data, error } = await supabase.rpc('record_rep_service_event', {
+      p_establishment_id: establishmentId,
+      p_event_code: eventCode,
+    });
+    if (error) {
+      console.error('Falha ao registrar evento de disponibilidade REP-P:', error.code || 'sem código');
+      return { ok: false, error: 'Não foi possível registrar o evento de disponibilidade.' };
+    }
+    return data?.ok === true ? data : { ok: false, error: 'O banco não confirmou o evento de disponibilidade.' };
+  } catch {
+    console.error('Falha de conexão ao registrar evento de disponibilidade REP-P.');
     return { ok: false, error: 'Não foi possível registrar o evento de disponibilidade.' };
   }
-  return data?.ok === true ? data : { ok: false, error: 'O banco não confirmou o evento de disponibilidade.' };
 }
