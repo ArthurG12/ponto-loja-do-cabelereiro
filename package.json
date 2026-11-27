@@ -10,7 +10,8 @@
     "start:rep-p": "node server/rep-p-server.js",
     "check:rep-p": "node --check server/rep-p-server.js && node --check server/rep-p.js",
     "test:rep-p": "node --test server/rep-p-server.test.js",
-    "test:afd": "node --test server/afd-v004.test.js"
+    "test:afd": "node --test server/afd-v004.test.js",
+    "test:cades": "node --test server/cades-signer-client.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",
