@@ -453,6 +453,13 @@ final class CadesSigner implements CadesSigningService {
         CertPathBuilder.getInstance("PKIX").build(params);
     }
 
+    static String trustAnchorVersion(String subject) {
+        if (subject == null) return null;
+        if (subject.matches("(?i).*\\bv5\\b.*")) return "v5";
+        if (subject.matches("(?i).*\\bv12\\b.*")) return "v12";
+        return null;
+    }
+
     private static Set<TrustAnchor> loadTrustAnchors(Path path) throws Exception {
         Collection<? extends java.security.cert.Certificate> certs;
         try (InputStream in = Files.newInputStream(path)) {
@@ -474,10 +481,11 @@ final class CadesSigner implements CadesSigningService {
             if (usage != null && (usage.length <= 5 || !usage[5])) {
                 throw new SecurityException("Trust anchor lacks keyCertSign usage");
             }
-            String subject = x509.getSubjectX500Principal().getName();
-            if (subject.matches("(?i).*\\bv5\\b.*")) rootVersions.add("v5");
-            else if (subject.matches("(?i).*\\bv12\\b.*")) rootVersions.add("v12");
-            else throw new SecurityException("AD-RB 2.4 trust anchor must be ICP-Brasil root v5 or v12");
+            String rootVersion = trustAnchorVersion(x509.getSubjectX500Principal().getName());
+            if (rootVersion == null) {
+                throw new SecurityException("AD-RB 2.4 trust anchor must be ICP-Brasil root v5 or v12");
+            }
+            rootVersions.add(rootVersion);
             anchors.add(new TrustAnchor(x509, null));
         }
         if (anchors.size() != 2 || !rootVersions.equals(Set.of("v5", "v12"))) {
