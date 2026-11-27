@@ -41,7 +41,10 @@ public final class SignerServer {
         InetAddress bindAddress = InetAddress.getByName(bindHost);
         HttpServer server = HttpServer.create(new InetSocketAddress(bindAddress, port), 32);
         server.createContext("/healthz", exchange -> respond(exchange, 200, "{\"status\":\"alive\"}"));
-        server.createContext("/readyz", exchange -> respond(exchange, 200, "{\"status\":\"ready\",\"signingEnabled\":true}"));
+        server.createContext("/readyz", exchange -> {
+            if (signer.ready()) respond(exchange, 200, "{\"status\":\"ready\",\"signingEnabled\":true}");
+            else respond(exchange, 503, "{\"status\":\"not_ready\",\"signingEnabled\":false}");
+        });
         server.createContext("/v1/sign-detached", this::signDetached);
         server.setExecutor(java.util.concurrent.Executors.newFixedThreadPool(4));
         server.start();
