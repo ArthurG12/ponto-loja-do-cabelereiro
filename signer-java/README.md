@@ -11,7 +11,7 @@
 - Conferência do hash SHA-256 da política DER publicado na LPA e do hash interno da PA usado no atributo CAdES.
 - Restrição explícita à política ICP-Brasil CAdES AD-RB versão 2.4 (OID 2.16.76.1.7.1.1.2.4).
 - Carregamento de identidade PKCS#12 externa ao repositório; pin SHA-256 do certificado, CPF do desenvolvedor no Subject, certificado final não-CA, digitalSignature KeyUsage e prova criptográfica de correspondência entre chave privada e certificado na inicialização.
-- Construção CMS detached com contentType, messageDigest, signingCertificateV2 e sigPolicyId; assinatura RSA/SHA-256 conforme AD-RB 2.4, rejeitando ECDSA e chaves RSA abaixo de 2048 bits.
+- Construção CMS detached com contentType, messageDigest, signingCertificateV2 e sigPolicyId; atualmente suporta RSA/SHA-256 (mínimo 2048 bits) e ECDSA/SHA-256 (mínimo 256 bits). A PA 2.4 também permite SHA-512 e Ed25519/Ed448, mas esses algoritmos ainda não foram implementados e são rejeitados explicitamente.
 - Reabertura e verificação criptográfica independente do CMS recém-gerado antes de retornar a assinatura.
 - A rota só responde ready depois de validar configuração, LPA, política, cadeia e identidade. Cada consulta de readiness e cada assinatura revalidam a LPA e o caminho/revogação; falha ou indisponibilidade bloqueia a operação.
 
@@ -41,7 +41,7 @@ Os arquivos devem ser montados por secret manager/volume protegido, fora do Git 
 | REP_CADES_DEVELOPER_CPF | CPF do desenvolvedor para correspondência com o Subject do certificado |
 | REP_CADES_ENVIRONMENT | deve ser production; qualquer outro valor bloqueia o serviço |
 
-Não adicione certificados, chaves, senhas, hashes de produção não conferidos ou dados pessoais ao repositório. Para a PA CAdES AD-RB 2.4, o bundle deve conter as raízes ICP-Brasil v2 e v5 indicadas no DOC-ICP-15.03 v9.1, obtidas do repositório oficial e aprovadas por fingerprint SHA-256 independente. A âncora de confiança e os pins não podem ser copiados cegamente da própria LPA.
+Não adicione certificados, chaves, senhas, hashes de produção não conferidos ou dados pessoais ao repositório. Para a PA CAdES AD-RB 2.4, o bundle deve conter exatamente as raízes ICP-Brasil v5 e v12 indicadas no DOC-ICP-15.03 v9.1, obtidas do repositório oficial e aprovadas por fingerprint SHA-256 independente. A âncora de confiança e os pins não podem ser copiados cegamente da própria LPA.
 
 Para conferir o pin do bundle de âncoras, calcule o SHA-256 dos bytes exatos do arquivo provisionado (por exemplo, sha256sum trust-anchors.pem). Os hashes da LPA DER e do arquivo .p7s devem ser confrontados com os sidecars oficiais do ITI e aprovados por canal independente. Já REP_CADES_POLICY_ATTRIBUTE_SHA256 **não** é o SHA-256 do arquivo DER inteiro: é o hash interno SignPolicyHash extraído da própria PA, que o serviço compara com o atributo sigPolicyId. Não use um valor inferido ou copiado sem validar a estrutura ASN.1 da PA.
 
@@ -56,7 +56,7 @@ A porta não deve ser publicada na Internet. Use rede privada e TLS/mTLS na fron
 
 ## Testes e limites ainda abertos
 
-- CI Maven/JDK 21 cobre **17 testes**, compilação, pacote, controles de token, parsing ASN.1 da LPA/PA, limites de vigência de 90 dias, rejeição de JSON ambíguo/aninhado, capacidade Base64 para AFD de 25 MB, algoritmo AD-RB 2.4 (RSA mínimo 2048; EC rejeitado), integração HTTP/backpressure e geração/verificação CMS detached com chave RSA efêmera de teste.
+- CI Maven/JDK 21 cobre **18 testes**, compilação, pacote, controles de token, parsing ASN.1 da LPA/PA, limites de vigência de 90 dias, rejeição de JSON ambíguo/aninhado, capacidade Base64 para AFD de 25 MB, algoritmos implementados da AD-RB 2.4 (RSA mínimo 2048 e ECDSA mínimo 256; EdDSA ainda não suportado), integração HTTP/backpressure e geração/verificação CMS detached com chave RSA efêmera de teste.
 - Vetores sintéticos não demonstram que os artefatos oficiais atuais, a cadeia ICP-Brasil ou o certificado real do desenvolvedor serão aceitos.
 - Ainda são necessários testes de integração com LPA CAdES oficial assinada pelo ITI, trust anchors oficiais pinados, respostas OCSP/CRL reais, certificado ICP-Brasil válido do desenvolvedor e verificação por uma segunda implementação independente.
 - A validação da revogação depende de conectividade aos respondedores OCSP/CRL; indisponibilidade ou resultado inconclusivo bloqueia. O serviço configura timeouts de conexão/leitura de 10 segundos para OCSP, LCR e recuperação de certificados, sem opção `SOFT_FAIL`.
