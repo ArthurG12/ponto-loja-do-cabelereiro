@@ -93,6 +93,50 @@ test('bloqueia NSR duplicado e hash tipo 7 divergente', () => {
   }), /Hash do registro tipo 7 diverge/);
 });
 
+
+test('hash SHA-256 coincide com vetor de referência e preserva a cadeia ao exportar intervalo', () => {
+  const vectorHash = candidateType7Hash({
+    nsr: 1,
+    markedAt: '2026-01-02T13:03:42.000Z',
+    cpf: '52998224725',
+    recordedAt: '2026-01-02T13:03:59.000Z',
+    collectorType: '02',
+    isOffline: false,
+    previousHash: null,
+    timezone,
+  });
+  assert.equal(vectorHash, 'ae9d6fb9ce501d6ab4626c7df591de4682880817b1cdde141b9c1ab1e5de5c4d');
+
+  const seed = 'a'.repeat(64);
+  const payload = {
+    recorded_at: '2026-01-02T13:03:42.000Z',
+    employee_cpf_snapshot: '52998224725',
+    recorded_on: '2026-01-02T13:03:59.000Z',
+    timezone,
+    collector_type: '02',
+    is_offline: false,
+  };
+  const mark = {
+    nsr: 2,
+    record_type: '7',
+    record_payload: payload,
+  };
+  mark.record_hash = candidateType7Hash({
+    nsr: mark.nsr,
+    markedAt: payload.recorded_at,
+    cpf: payload.employee_cpf_snapshot,
+    recordedAt: payload.recorded_on,
+    collectorType: payload.collector_type,
+    isOffline: payload.is_offline,
+    previousHash: seed,
+    timezone,
+  });
+
+  const output = buildAfdV004({ header, records: [mark], initialPreviousType7Hash: seed });
+  assert.equal(validateAfdV004(output, { initialPreviousType7Hash: seed }).ok, true);
+  assert.equal(validateAfdV004(output).ok, false);
+});
+
 test('validador detecta CRC corrompido', () => {
   const output = buildAfdV004({ header, records: [] });
   const broken = Buffer.from(output);
