@@ -181,21 +181,20 @@ final class CadesSigner {
     }
 
     boolean ready() {
-        Instant now = Instant.now();
-        if (!isPolicyCurrent(policy, now)) return false;
+        if (!isPolicyCurrent(policy, Instant.now())) return false;
         try {
             signerCertificate.checkValidity();
+            verifyDetachedCms(lpaDer, lpaSignature, trustAnchors, true);
+            validatePath(signerCertificate, signerChain, trustAnchors);
             return true;
-        } catch (CertificateException expiredOrNotYetValid) {
+        } catch (Exception invalidOrUnavailableTrustEvidence) {
             return false;
         }
     }
 
     Map<String, Object> sign(String operationId, byte[] content, String claimedDigest) throws Exception {
         validateSigningInput(operationId, content, claimedDigest);
-        if (!ready()) throw new SecurityException("CAdES policy or LPA is no longer current");
-        verifyDetachedCms(lpaDer, lpaSignature, trustAnchors, true);
-        validatePath(signerCertificate, signerChain, trustAnchors);
+        if (!ready()) throw new SecurityException("CAdES policy, LPA, certificate chain, or revocation status is not valid");
         return signInternal(operationId, content, sha256(content));
     }
 
