@@ -67,7 +67,7 @@ O Java escuta HTTP dentro da rede privada do container. O cliente Node exige HTT
 
 ## Testes já automatizados
 
-O CI atual executa 20 testes Java/JUnit, verifica CMS detached com OpenSSL 3 como segunda implementação, confere dependências no JAR sombreado e constrói a imagem Docker. A suíte inclui:
+O CI atual executa 21 testes Java/JUnit, verifica CMS detached com OpenSSL 3 como segunda implementação, confere dependências no JAR sombreado e constrói a imagem Docker. A suíte inclui:
 - atributos CAdES obrigatórios e verificação de assinatura detached;
 - assinatura RSA/SHA-256 e ECDSA/SHA-256 com chaves efêmeras;
 - vinculação chave privada/certificado;
