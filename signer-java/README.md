@@ -34,7 +34,7 @@ Os arquivos devem ser montados por secret manager/volume protegido, fora do Git 
 | REP_CADES_POLICY_OID | deve ser 2.16.76.1.7.1.1.2.4 |
 | REP_CADES_POLICY_URI | URI textual exata da PA conforme a LPA (HTTP/HTTPS conforme publicação oficial) |
 | REP_CADES_POLICY_VERSION | deve ser 2.4 |
-| REP_CADES_POLICY_ATTRIBUTE_SHA256 | hash interno SHA-256 da PA para o atributo sigPolicyId |
+| REP_CADES_POLICY_ATTRIBUTE_SHA256 | SHA-256 de DER(SignPolicyHashAlg || SignPolicyInfo), usado no atributo sigPolicyId |
 | REP_CADES_KEYSTORE | caminho externo para PKCS#12 do desenvolvedor |
 | REP_CADES_KEYSTORE_PASSWORD | senha do PKCS#12, fornecida por secret manager |
 | REP_CADES_CERT_SHA256 | fingerprint SHA-256 autorizado do certificado do desenvolvedor |
@@ -43,7 +43,7 @@ Os arquivos devem ser montados por secret manager/volume protegido, fora do Git 
 
 Não adicione certificados, chaves, senhas, hashes de produção não conferidos ou dados pessoais ao repositório. Para a PA CAdES AD-RB 2.4, o bundle deve conter exatamente as raízes ICP-Brasil v5 e v12 indicadas no DOC-ICP-15.03 v9.1, obtidas do repositório oficial e aprovadas por fingerprint SHA-256 independente. A âncora de confiança e os pins não podem ser copiados cegamente da própria LPA.
 
-Para conferir o pin do bundle de âncoras, calcule o SHA-256 dos bytes exatos do arquivo provisionado (por exemplo, sha256sum trust-anchors.pem). Os hashes da LPA DER e do arquivo .p7s devem ser confrontados com os sidecars oficiais do ITI e aprovados por canal independente. Já REP_CADES_POLICY_ATTRIBUTE_SHA256 **não** é o SHA-256 do arquivo DER inteiro: é o hash interno SignPolicyHash extraído da própria PA, que o serviço compara com o atributo sigPolicyId. Não use um valor inferido ou copiado sem validar a estrutura ASN.1 da PA.
+Para conferir o pin do bundle de âncoras, calcule o SHA-256 dos bytes exatos do arquivo provisionado (por exemplo, sha256sum trust-anchors.pem). Os hashes da LPA DER e do arquivo .p7s devem ser confrontados com os sidecars oficiais do ITI e aprovados por canal independente. Já REP_CADES_POLICY_ATTRIBUTE_SHA256 **não** é o SHA-256 do arquivo DER inteiro: é SHA-256 sobre a codificação DER de `SignPolicyHashAlg || SignPolicyInfo`, conforme a estrutura `SignPolicy` (RFC 3125), que o serviço recomputa e compara com o `SignPolicyHash` embutido quando presente e com o valor configurado para `sigPolicyId`. O `AlgorithmIdentifier` SHA-256 exige parâmetros ausentes. Não use um valor inferido ou copiado sem validar a estrutura ASN.1 da PA.
 
 
 ## Endpoints
@@ -56,7 +56,7 @@ A porta não deve ser publicada na Internet. Use rede privada e TLS/mTLS na fron
 
 ## Testes e limites ainda abertos
 
-- CI Maven/JDK 21 cobre **19 testes**, compilação, pacote, controles de token, parsing ASN.1 da LPA/PA, limites de vigência de 90 dias, rejeição de JSON ambíguo/aninhado, capacidade Base64 para AFD de 25 MB, algoritmos implementados da AD-RB 2.4 (RSA mínimo 2048 e ECDSA mínimo 256; EdDSA ainda não suportado), integração HTTP/backpressure e geração/verificação CMS detached com chave RSA efêmera de teste.
+- CI Maven/JDK 21 cobre **20 testes**, compilação, pacote, controles de token, parsing ASN.1 da LPA/PA e recomputação de `SignPolicyHash`, limites de vigência de 90 dias, rejeição de JSON ambíguo/aninhado, capacidade Base64 para AFD de 25 MB, algoritmos implementados da AD-RB 2.4 (RSA mínimo 2048 e ECDSA mínimo 256; EdDSA ainda não suportado), integração HTTP/backpressure e geração/verificação CMS detached com chave RSA efêmera de teste.
 - Vetores sintéticos não demonstram que os artefatos oficiais atuais, a cadeia ICP-Brasil ou o certificado real do desenvolvedor serão aceitos.
 - Ainda são necessários testes de integração com LPA CAdES oficial assinada pelo ITI, trust anchors oficiais pinados, respostas OCSP/CRL reais, certificado ICP-Brasil válido do desenvolvedor e verificação por uma segunda implementação independente.
 - A validação da revogação depende de conectividade aos respondedores OCSP/CRL; indisponibilidade ou resultado inconclusivo bloqueia. O serviço configura timeouts de conexão/leitura de 10 segundos para OCSP, LCR e recuperação de certificados, sem opção `SOFT_FAIL`.
