@@ -84,6 +84,8 @@ final class CadesSigner {
     static CadesSigner fromEnvironment() throws Exception {
         if (Security.getProvider("BC") == null) Security.addProvider(new BouncyCastleProvider());
         Map<String, String> e = System.getenv();
+        Security.setProperty("ocsp.enable", "true");
+        System.setProperty("com.sun.security.enableCRLDP", "true");
         Path trustPath = requiredPath(e, "REP_CADES_TRUST_ANCHORS");
         Path lpaPath = requiredPath(e, "REP_CADES_LPA_DER");
         Path lpaSignaturePath = requiredPath(e, "REP_CADES_LPA_P7S");
@@ -309,6 +311,19 @@ final class CadesSigner {
         Collection<X509CertificateHolder> matches = store.getMatches(signer.getSID());
         if (matches.size() != 1) throw new SecurityException("LPA signer certificate is missing or ambiguous");
         X509Certificate cert = new JcaX509CertificateConverter().setProvider("BC").getCertificate(matches.iterator().next());
+        AttributeTable signed = signer.getSignedAttributes();
+        if (signed == null || signed.get(CMSAttributes.contentType) == null
+                || signed.get(CMSAttributes.messageDigest) == null
+                || (signed.get(SIGNING_CERT_V2) == null
+                    && signed.get(PKCSObjectIdentifiers.id_aa_signingCertificate) == null)
+                || signed.get(SIG_POLICY_ID) == null) {
+            throw new SecurityException("LPA CMS signer lacks mandatory ICP-Brasil CAdES attributes");
+        }
+        ASN1ObjectIdentifier lpaContentType = ASN1ObjectIdentifier.getInstance(
+                signed.get(CMSAttributes.contentType).getAttrValues().getObjectAt(0));
+        if (!CMSObjectIdentifiers.data.equals(lpaContentType)) {
+            throw new SecurityException("LPA CMS contentType is not data");
+        }
         if (!signer.verify(new JcaSimpleSignerInfoVerifierBuilder().setProvider("BC").build(cert))) {
             throw new SecurityException("LPA CMS signature is invalid");
         }
