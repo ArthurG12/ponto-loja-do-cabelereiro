@@ -8,7 +8,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.*;
 import java.security.cert.*;
-import java.security.interfaces.ECKey;
 import java.security.interfaces.RSAKey;
 import java.time.Duration;
 import java.time.Instant;
@@ -167,9 +166,7 @@ final class CadesSigner {
         String subjectDigits = digits(leaf.getSubjectX500Principal().getName());
         if (!subjectDigits.contains(cpf)) throw new SecurityException("Developer CPF does not match signing certificate subject");
         validatePath(leaf, chain, anchors);
-        String algorithm = key instanceof RSAKey ? "SHA256withRSA"
-                : key instanceof ECKey ? "SHA256withECDSA" : null;
-        if (algorithm == null) throw new SecurityException("Unsupported signing key algorithm");
+        String algorithm = signatureAlgorithmFor(key);
         verifyKeyPair(key, leaf, algorithm);
         return new CadesSigner(key, leaf, chain, anchors, algorithm, policy,
                 actualFingerprint, cpf, environment, policyVersion, lpa, lpaSignature);
@@ -202,6 +199,16 @@ final class CadesSigner {
         return signInternal(operationId, content, sha256(content));
     }
 
+
+    static String signatureAlgorithmFor(PrivateKey key) {
+        if (!(key instanceof RSAKey rsa)) {
+            throw new SecurityException("ICP-Brasil CAdES AD-RB 2.4 requires an RSA signing key");
+        }
+        if (rsa.getModulus().bitLength() < 2048) {
+            throw new SecurityException("ICP-Brasil CAdES AD-RB 2.4 requires RSA keys of at least 2048 bits");
+        }
+        return "SHA256withRSA";
+    }
 
     static void verifyKeyPair(PrivateKey privateKey, X509Certificate certificate, String algorithm) throws Exception {
         byte[] challenge = new byte[32];
