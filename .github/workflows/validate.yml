@@ -29,3 +29,46 @@ jobs:
           node --check scripts/dev.mjs
       - name: Build frontend
         run: npm run build
+
+  postgres-migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ponto_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ponto_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Prepare minimal Supabase auth schema
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d ponto_test -v ON_ERROR_STOP=1 <<'SQL'
+          create role anon nologin;
+          create role authenticated nologin;
+          create role service_role nologin bypassrls;
+          create schema auth;
+          create table auth.users (id uuid primary key);
+          create or replace function auth.uid()
+          returns uuid language sql stable
+          as $$ select null::uuid $$;
+          SQL
+      - name: Apply base schema and REP-P migrations
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d ponto_test -v ON_ERROR_STOP=1 -f supabase/schema.sql
+          for migration in supabase/migrations/202611260001_rep_p_arp.sql supabase/migrations/202611260002_register_time_mark.sql supabase/migrations/202611260003_assign_employee_establishment.sql supabase/migrations/202611260004_read_employee_time_marks.sql; do
+            psql -h localhost -U postgres -d ponto_test -v ON_ERROR_STOP=1 -f "$migration"
+          done
+          psql -h localhost -U postgres -d ponto_test -v ON_ERROR_STOP=1 -f supabase/tests/rep_p_migrations.sql
