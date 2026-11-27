@@ -186,7 +186,9 @@ begin
   -- Funções internas/administrativas não podem ser chamadas como anon.
   if has_function_privilege('anon', 'public.assign_employee_establishment()', 'EXECUTE')
      or has_function_privilege('anon', 'public.admin_save_employee(uuid,text,text,text,boolean)', 'EXECUTE')
-     or has_function_privilege('anon', 'public.admin_adjust_punch(text,uuid,uuid,public.punch_kind,timestamptz,text)', 'EXECUTE') then
+     or has_function_privilege('anon', 'public.admin_adjust_punch(text,uuid,uuid,public.punch_kind,timestamptz,text)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.append_rep_afd_event(uuid,text,jsonb,timestamptz,uuid)', 'EXECUTE')
+     or has_function_privilege('authenticated', 'public.append_rep_afd_event(uuid,text,jsonb,timestamptz,uuid)', 'EXECUTE') then
     raise exception 'Função interna ou administrativa ainda está executável por anon.';
   end if;
 end;
