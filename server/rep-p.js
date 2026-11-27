@@ -80,8 +80,8 @@ export async function listRepPunchesToday(input) {
   const day = String(input?.day || '');
 
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(employeeId)
-    || !/^\\d{4,6}$/.test(pin)
-    || !/^\\d{4}-\\d{2}-\\d{2}$/.test(day)) {
+    || !/^\d{4,6}$/.test(pin)
+    || !/^\d{4}-\d{2}-\d{2}$/.test(day)) {
     return { ok: false, error: 'Dados para consulta inválidos.', punches: [] };
   }
 
