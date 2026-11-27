@@ -509,12 +509,12 @@ final class CadesSigner implements CadesSigningService {
         if (paRoot.size() < 2 || paRoot.size() > 3) {
             throw new SecurityException("CAdES policy DER must contain hash algorithm, policy info and optional policy hash");
         }
-        ASN1Sequence hashAlgorithmIdentifier = ASN1Sequence.getInstance(paRoot.getObjectAt(0));
-        if (hashAlgorithmIdentifier.size() != 1) {
+        ASN1Sequence signPolicyHashAlgorithmIdentifier = ASN1Sequence.getInstance(paRoot.getObjectAt(0));
+        if (signPolicyHashAlgorithmIdentifier.size() != 1) {
             throw new SecurityException("CAdES policy SHA-256 AlgorithmIdentifier parameters must be absent");
         }
         String internalHashAlgorithm = ASN1ObjectIdentifier.getInstance(
-                hashAlgorithmIdentifier.getObjectAt(0)).getId();
+                signPolicyHashAlgorithmIdentifier.getObjectAt(0)).getId();
         ASN1Sequence policyInfo = ASN1Sequence.getInstance(paRoot.getObjectAt(1));
         ASN1EncodableVector hashInputFields = new ASN1EncodableVector();
         hashInputFields.add(paRoot.getObjectAt(0));
