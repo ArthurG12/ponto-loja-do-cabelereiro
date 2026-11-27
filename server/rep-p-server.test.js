@@ -10,6 +10,7 @@ before(async () => {
   process.env.SUPABASE_SERVICE_ROLE_KEY = '';
   process.env.REP_COLLECTOR_ID = '';
   process.env.REP_COLLECTOR_TYPE = '';
+  process.env.REP_ESTABLISHMENT_ID = '';
   process.env.REP_ALLOWED_ORIGIN = '';
   process.env.REP_ALLOWED_ORIGINS = '';
   server = createRepServer();
@@ -39,6 +40,7 @@ test('readiness endpoint fails closed when private credentials are absent', asyn
     ok: false,
     service: 'rep-p-api',
     configured: false,
+    availabilityRecorded: false,
   });
 });
 
@@ -64,7 +66,7 @@ test('employee directory endpoint fails closed without backend credentials', asy
   assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), {
     ok: false,
-    error: 'Serviço REP-P não configurado.',
+    error: 'Serviço REP-P não configurado ou evento de disponibilidade ainda não registrado.',
   });
 });
 
