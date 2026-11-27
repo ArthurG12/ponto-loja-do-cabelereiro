@@ -173,16 +173,25 @@ final class CadesSigner {
     }
 
     Map<String, Object> sign(String operationId, byte[] content, String claimedDigest) throws Exception {
-        if (content == null || content.length == 0 || content.length > 25_000_000
-                || !operationId.matches("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")) {
-            throw new IllegalArgumentException("Invalid signing request");
-        }
-        String digest = sha256(content);
-        if (!digest.equalsIgnoreCase(claimedDigest)) throw new SecurityException("Content digest mismatch");
+        validateSigningInput(operationId, content, claimedDigest);
         if (!ready()) throw new SecurityException("CAdES policy or LPA is no longer current");
         verifyDetachedCms(lpaDer, lpaSignature, trustAnchors, true);
         validatePath(signerCertificate, signerChain, trustAnchors);
+        return signInternal(operationId, content, sha256(content));
+    }
 
+    private static void validateSigningInput(String operationId, byte[] content, String claimedDigest) throws Exception {
+        if (content == null || content.length == 0 || content.length > 25_000_000
+                || operationId == null
+                || !operationId.matches("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")) {
+            throw new IllegalArgumentException("Invalid signing request");
+        }
+        if (!sha256(content).equalsIgnoreCase(claimedDigest)) throw new SecurityException("Content digest mismatch");
+    }
+
+    // Package-scoped primitive test seam. The HTTP service only calls sign(), which
+    // performs LPA, trust-chain and revocation checks before reaching this method.
+    Map<String, Object> signInternal(String operationId, byte[] content, String digest) throws Exception {
         byte[] certHash = MessageDigest.getInstance("SHA-256").digest(signerCertificate.getEncoded());
         ESSCertIDv2 essCert = new ESSCertIDv2(certHash);
         SigningCertificateV2 signingCertificate = new SigningCertificateV2(new ESSCertIDv2[]{essCert});
