@@ -71,6 +71,27 @@ const remoteApi = {
     return { ok: true };
   },
   async todayPunches(employeeId, pin) {
+    // Quando o REP-P está configurado, valida primeiro no backend oficial.
+    // Assim, PIN inválido/ bloqueado é contabilizado pela RPC REP-P, que
+    // retorna JSON em vez de lançar exceção (e perder a atualização no rollback).
+    let repPunches = [];
+    if (repApiUrl) {
+      try {
+        const response = await fetch(`${repApiUrl}/api/rep-p/today`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ employeeId, pin, day: saoPauloParts().dayKey }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result?.ok) {
+          return { ok: false, error: result?.error || 'Não foi possível carregar as marcações REP-P.' };
+        }
+        repPunches = result.punches || [];
+      } catch {
+        return { ok: false, error: 'Servidor REP-P indisponível. Não foi possível consultar as marcações.' };
+      }
+    }
+
     const { data, error } = await supabase.rpc('list_employee_punches', {
       employee_uuid: employeeId,
       submitted_pin: pin,
@@ -78,23 +99,11 @@ const remoteApi = {
     });
     if (error) return { ok: false, error: messageFrom(error, 'Não foi possível carregar as marcações de hoje.') };
 
-    if (!repApiUrl) return { ok: true, punches: data || [] };
-
-    try {
-      const response = await fetch(`${repApiUrl}/api/rep-p/today`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ employeeId, pin, day: saoPauloParts().dayKey }),
-      });
-      const result = await response.json();
-      if (!response.ok || !result?.ok) {
-        return { ok: false, error: result?.error || 'Não foi possível carregar as marcações REP-P.' };
-      }
-      return { ok: true, punches: [...(data || []), ...(result.punches || [])]
-        .sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at)) };
-    } catch {
-      return { ok: false, error: 'Servidor REP-P indisponível. Não foi possível consultar as marcações.' };
-    }
+    return {
+      ok: true,
+      punches: [...(data || []), ...repPunches]
+        .sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at)),
+    };
   },
   async registerPunch(employeeId, pin, type, requestId) {
     if (repApiUrl) {
