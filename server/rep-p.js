@@ -103,15 +103,56 @@ export async function listRepPunchesToday(input) {
     return { ok: false, error: data.error || 'Senha inválida.', punches: [] };
   }
 
+  // Preserva a leitura de marcações históricas legadas, mas somente pelo
+  // backend confiável. O navegador não recebe mais acesso direto a esta RPC.
+  const { data: legacyData, error: legacyError } = await supabase.rpc('list_employee_punches', {
+    employee_uuid: employeeId,
+    submitted_pin: pin,
+    p_day: day,
+  });
+  if (legacyError) {
+    console.error('Falha na consulta do histórico legado:', legacyError.code || 'sem código');
+    return { ok: false, error: 'Não foi possível carregar o histórico de hoje.', punches: [] };
+  }
+
+  const legacyPunches = (legacyData || []).map((punch) => ({
+    id: punch.id,
+    employee_id: punch.employee_id,
+    punch_type: punch.punch_type,
+    recorded_at: punch.recorded_at,
+    source: punch.source,
+  }));
+  const repPunches = (data?.punches || []).map((mark) => ({
+    id: mark.id,
+    employee_id: mark.employee_id,
+    punch_type: mark.punch_type,
+    recorded_at: mark.recorded_at,
+    source: mark.source,
+    nsr: mark.nsr,
+  }));
+
   return {
     ok: true,
-    punches: (data?.punches || []).map((mark) => ({
-      id: mark.id,
-      employee_id: mark.employee_id,
-      punch_type: mark.punch_type,
-      recorded_at: mark.recorded_at,
-      source: mark.source,
-      nsr: mark.nsr,
-    })),
+    punches: [...legacyPunches, ...repPunches]
+      .sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at)),
   };
+}
+
+export async function listActiveRepEmployees() {
+  if (!configured || !supabase) {
+    return { ok: false, error: 'Consulta da equipe indisponível: configure o backend.', employees: [] };
+  }
+
+  const { data, error } = await supabase
+    .from('employees')
+    .select('id,full_name,schedule_code')
+    .eq('active', true)
+    .order('full_name');
+
+  if (error) {
+    console.error('Falha ao carregar equipe REP-P:', error.code || 'sem código');
+    return { ok: false, error: 'Não foi possível carregar a equipe.', employees: [] };
+  }
+
+  return { ok: true, employees: data || [] };
 }
