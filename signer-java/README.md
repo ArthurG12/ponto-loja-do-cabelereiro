@@ -24,7 +24,7 @@ Os arquivos devem ser montados por secret manager/volume protegido, fora do Git 
 | REP_CADES_SERVICE_TOKEN | segredo serviço-a-serviço com pelo menos 32 caracteres |
 | REP_CADES_BIND_HOST | padrão 127.0.0.1; usar IP privado explícito se necessário |
 | PORT | porta HTTP, padrão 8787 |
-| REP_CADES_TRUST_ANCHORS | bundle PEM de âncoras ICP-Brasil aprovadas, provisionado fora do repositório |
+| REP_CADES_TRUST_ANCHORS | bundle PEM de âncoras ICP-Brasil aprovadas, provisionado fora do repositório |\n| REP_CADES_TRUST_ANCHORS_SHA256 | SHA-256 aprovado do bundle PEM exato de âncoras |
 | REP_CADES_LPA_DER | caminho da LPA CAdES DER oficial |
 | REP_CADES_LPA_P7S | caminho da assinatura PKCS#7 detached da LPA |
 | REP_CADES_POLICY_DER | caminho da PA CAdES DER correspondente |
