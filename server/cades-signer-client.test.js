@@ -110,7 +110,7 @@ test('rejects homologation environment and malformed CMS data', async () => {
   await assert.rejects(requestCadesDetachedSignature(content, config(async (_url, options) => {
     const body = JSON.parse(options.body);
     return new Response(JSON.stringify({ ...validResponse(body), signature: 'not base64!' }), { status: 200 });
-  })), /CMS\\/PKCS#7 inválido/i);
+  })), /CMS.*PKCS#7 inválido/i);
 });
 
 test('rejects oversized content and unavailable signer', async () => {
