@@ -100,6 +100,14 @@ async function withTestServer(options, run) {
   }
 }
 
+test('AFD route accepts GET only', async () => {
+  await withTestServer({ readiness: () => true }, async (url) => {
+    const response = await fetch(`${url}/api/rep-p/afd`, { method: 'POST' });
+    assert.equal(response.status, 405);
+    assert.equal(response.headers.get('allow'), 'GET, OPTIONS');
+  });
+});
+
 test('AFD export requires a bearer token before invoking authorization or ledger access', async () => {
   let authorizationCalls = 0;
   let preparationCalls = 0;
