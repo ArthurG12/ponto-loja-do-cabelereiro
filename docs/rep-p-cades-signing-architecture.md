@@ -62,3 +62,23 @@ A API deve rejeitar resposta sem todos os campos, OID diferente do autorizado, v
 ## Critério de conclusão
 
 A assinatura só poderá ser ativada após implementação e testes automatizados de geração e verificação, certificado ICP-Brasil válido do desenvolvedor, identidade/registro INPI reais, validação independente do AFD/hash e revisão especializada. Até lá, o endpoint deve continuar retornando indisponibilidade para exportação e jamais disponibilizar o AFD sem assinatura.
+
+
+## Controles adicionais identificados na versão 4.6.2
+
+A revisão das notas de versão 4.6.2 (03/09/2026) identificou uma ressalva relevante: a validação do hash da política no \`CAdESChecker\` foi desabilitada por padrão para preservar compatibilidade com assinaturas já aceitas por validadores do SERPRO e do ITI. A mesma release introduziu detecção de inconsistência entre o OID do algoritmo declarado e o tamanho do \`hashValue\` do \`SignaturePolicyIdentifier\`. Consequentemente:
+
+- Não tratar \`CAdESChecker\` como prova suficiente de que o hash da PA/LPA foi validado. O serviço deve recomputar SHA-256 do DER da LPA e compará-lo com o valor publicado no canal oficial, além de validar criptograficamente o arquivo de assinatura da LPA.
+- O verificador independente deve conferir o algoritmo declarado, o OID, o tamanho do digest e o digest efetivo do DER. Qualquer inconsistência deve bloquear a assinatura.
+- A cadeia de produção \`chain-icp-brasil\` deve ser a única cadeia ICP-Brasil habilitada no processo de produção. A documentação da 4.6.2 informa que providers presentes no classpath são carregados automaticamente, inclusive módulos de homologação; portanto, não incluir \`chain-icp-brasil-homolog\` nem \`chain-iti-homolog\` no artefato de produção. Não basta configurar um sinalizador se a dependência de homologação continuar empacotada.
+- O trust anchor usado para validar a assinatura da LPA deve ser provisionado fora do repositório, com fingerprint SHA-256 verificado por procedimento operacional independente. Não confiar em certificado raiz recebido no mesmo download que a LPA.
+- O resultado de validação deve distinguir assinatura matemática válida, cadeia confiável, revogação verificada e política vigente. Uma verificação positiva de CMS não equivale, isoladamente, a todas essas condições.
+
+A LPA CAdES publicada pelo ITI é atualizada em ciclos e contém \`nextUpdate\`; o ITI informa que a própria LPA é assinada com PKCS#7 por certificado de pessoa jurídica do ITI. O serviço deve falhar fechado quando não conseguir baixar ou validar os artefatos, sem reaproveitar indefinidamente um cache expirado.
+
+## Critérios de teste adicionais
+
+- Teste negativo com hash DER alterado, hash publicado adulterado, OID de algoritmo incorreto e \`hashValue\` com tamanho incompatível.
+- Teste de empacotamento que falha se qualquer artefato de cadeia de homologação estiver no classpath/runtime de produção.
+- Teste com certificado da LPA fora da cadeia confiável configurada, certificado expirado ou revogado.
+- Teste de indisponibilidade do ITI e de \`nextUpdate\` vencido: nenhuma assinatura pode ser produzida usando LPA vencida.
