@@ -42,6 +42,7 @@ import org.bouncycastle.cert.jcajce.JcaCertStore;
  */
 final class CadesSigner {
     private static final String SHA256_OID = "2.16.840.1.101.3.4.2.1";
+    private static final String ICP_CADES_AD_RB_24_OID = "2.16.76.1.7.1.1.2.4";
     private static final ASN1ObjectIdentifier SIGNING_CERT_V2 =
         new ASN1ObjectIdentifier("1.2.840.113549.1.9.16.2.47");
     private static final ASN1ObjectIdentifier SIG_POLICY_ID =
@@ -94,7 +95,7 @@ final class CadesSigner {
         String cpf = digits(required(e, "REP_CADES_DEVELOPER_CPF"));
         String environment = required(e, "REP_CADES_ENVIRONMENT");
         if (!environment.equals("production") || cpf.length() != 11 || !policyVersion.equals("2.4")
-                || !policyOid.matches("\\d+(?:\\.\\d+){2,}") || !policyUri.startsWith("https://")) {
+                || !ICP_CADES_AD_RB_24_OID.equals(policyOid) || !policyUri.startsWith("https://")) {
             throw new IllegalStateException("Signer production identity or policy configuration is invalid");
         }
 
