@@ -5,6 +5,7 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.Duration;
 import java.util.Date;
+import java.util.Arrays;
 import java.util.HexFormat;
 import org.bouncycastle.asn1.*;
 import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
