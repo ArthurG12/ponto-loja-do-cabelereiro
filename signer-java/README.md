@@ -31,7 +31,7 @@ Os arquivos devem ser montados por secret manager/volume protegido, fora do Git 
 | REP_CADES_LPA_SHA256 | SHA-256 aprovado da LPA DER |
 | REP_CADES_LPA_SIGNATURE_SHA256 | SHA-256 aprovado do arquivo .p7s da LPA |
 | REP_CADES_POLICY_OID | deve ser 2.16.76.1.7.1.1.2.4 |
-| REP_CADES_POLICY_URI | URI HTTPS exata da PA conforme a LPA |
+| REP_CADES_POLICY_URI | URI textual exata da PA conforme a LPA (HTTP/HTTPS conforme publicação oficial) |
 | REP_CADES_POLICY_VERSION | deve ser 2.4 |
 | REP_CADES_POLICY_ATTRIBUTE_SHA256 | hash interno SHA-256 da PA para o atributo sigPolicyId |
 | REP_CADES_KEYSTORE | caminho externo para PKCS#12 do desenvolvedor |
@@ -52,7 +52,7 @@ A porta não deve ser publicada na Internet. Use rede privada e TLS/mTLS na fron
 
 ## Testes e limites ainda abertos
 
-- CI Maven/JDK 21 cobre compilação, pacote, controles de token e parsing ASN.1 da LPA/PA com vetores sintéticos.
+- CI Maven/JDK 21 cobre compilação, pacote, controles de token, parsing ASN.1 da LPA/PA e geração/verificação CMS detached com chave RSA efêmera de teste.
 - Vetores sintéticos não demonstram que os artefatos oficiais atuais, a cadeia ICP-Brasil ou o certificado real do desenvolvedor serão aceitos.
 - Ainda são necessários testes de integração com LPA CAdES oficial assinada pelo ITI, trust anchors oficiais pinados, respostas OCSP/CRL reais, certificado ICP-Brasil válido do desenvolvedor e verificação por uma segunda implementação independente.
 - A validação da revogação depende de conectividade aos respondedores OCSP/CRL; indisponibilidade ou resultado inconclusivo bloqueia.
