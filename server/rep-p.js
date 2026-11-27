@@ -274,18 +274,25 @@ export async function prepareRepAfdExport({ startDate, endDate }) {
   const nextDay = new Date(lastDay.getTime() + 86400000).toISOString().slice(0, 10);
   const rangeEnd = localMidnightUtc(nextDay, timezone);
 
-  const { data: allRecords, error: ledgerError } = await supabase
-    .from('rep_ledger')
-    .select('establishment_id,nsr,record_type,source_table,source_id,occurred_at,record_payload,hash_version,record_hash')
-    .eq('establishment_id', establishmentId)
-    .order('nsr', { ascending: true })
-    .limit(100001);
-  if (ledgerError) {
-    console.error('Falha ao consultar livro AFD:', ledgerError.code || 'sem código');
-    throw new Error('Não foi possível consultar o livro AFD.');
-  }
-  if ((allRecords || []).length > 100000) {
-    throw new Error('Histórico excede o limite seguro de validação. Exportação bloqueada.');
+  const allRecords = [];
+  let ledgerOffset = 0;
+  while (true) {
+    const { data: page, error: ledgerError } = await supabase
+      .from('rep_ledger')
+      .select('establishment_id,nsr,record_type,source_table,source_id,occurred_at,record_payload,hash_version,record_hash')
+      .eq('establishment_id', establishmentId)
+      .order('nsr', { ascending: true })
+      .range(ledgerOffset, ledgerOffset + 999);
+    if (ledgerError) {
+      console.error('Falha ao consultar livro AFD:', ledgerError.code || 'sem código');
+      throw new Error('Não foi possível consultar o livro AFD.');
+    }
+    allRecords.push(...(page || []));
+    if (allRecords.length > 100000) {
+      throw new Error('Histórico excede o limite seguro de validação. Exportação bloqueada.');
+    }
+    if (!page || page.length < 1000) break;
+    ledgerOffset += 1000;
   }
 
   let previousType7Hash = '';
@@ -313,7 +320,7 @@ export async function prepareRepAfdExport({ startDate, endDate }) {
     type7HashesByNsr.set(Number(record.nsr), record.record_hash);
   }
 
-  const selected = (allRecords || []).filter((record) => {
+  const selected = allRecords.filter((record) => {
     const timestamp = new Date(record.occurred_at).getTime();
     return Number.isFinite(timestamp) && timestamp >= rangeStart.getTime() && timestamp < rangeEnd.getTime();
   });
