@@ -71,7 +71,7 @@ jobs:
           PGPASSWORD: postgres
         run: |
           psql -h localhost -U postgres -d ponto_test -v ON_ERROR_STOP=1 -f supabase/schema.sql
-          for migration in supabase/migrations/202611260001_rep_p_arp.sql supabase/migrations/202611260002_register_time_mark.sql supabase/migrations/202611260003_assign_employee_establishment.sql supabase/migrations/202611260004_read_employee_time_marks.sql supabase/migrations/202611260005_restrict_internal_function_execution.sql supabase/migrations/202611260006_fix_legacy_function_search_path.sql supabase/migrations/202611260007_disable_first_user_admin.sql supabase/migrations/202611270008_rep_afd_ledger.sql supabase/migrations/202611270009_rep_mark_snapshots.sql; do
+          for migration in supabase/migrations/202611260001_rep_p_arp.sql supabase/migrations/202611260002_register_time_mark.sql supabase/migrations/202611260003_assign_employee_establishment.sql supabase/migrations/202611260004_read_employee_time_marks.sql supabase/migrations/202611260005_restrict_internal_function_execution.sql supabase/migrations/202611260006_fix_legacy_function_search_path.sql supabase/migrations/202611260007_disable_first_user_admin.sql supabase/migrations/202611270008_rep_afd_ledger.sql supabase/migrations/202611270009_rep_mark_snapshots.sql supabase/migrations/202611270010_rep_afd_v004_hash.sql; do
             psql -h localhost -U postgres -d ponto_test -v ON_ERROR_STOP=1 -f "$migration"
           done
           psql -h localhost -U postgres -d ponto_test -v ON_ERROR_STOP=1 -f supabase/tests/rep_p_migrations.sql
