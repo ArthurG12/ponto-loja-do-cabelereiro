@@ -145,7 +145,7 @@ export async function listActiveRepEmployees() {
 
   const { data, error } = await supabase
     .from('employees')
-    .select('id,full_name,schedule_code')
+    .select('id,full_name,photo_url,schedule_code')
     .eq('active', true)
     .order('full_name');
 
