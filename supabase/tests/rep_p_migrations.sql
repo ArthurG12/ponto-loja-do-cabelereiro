@@ -1,5 +1,5 @@
 -- Teste de integração das migrations REP-P em PostgreSQL limpo.
--- Executado pelo GitHub Actions após schema.sql e migrations 001–009.
+-- Executado pelo GitHub Actions após schema.sql e migrations 001–010.
 
 do $$
 declare
@@ -131,6 +131,10 @@ begin
   end if;
   if public.rep_afd_v004_mark_hash(1, '2026-01-02T13:03:42+00'::timestamptz, '52998224725', '2026-01-02T13:03:59+00'::timestamptz, '02', false, null, 'America/Sao_Paulo') <> 'ae9d6fb9ce501d6ab4626c7df591de4682880817b1cdde141b9c1ab1e5de5c4d' then
     raise exception 'SHA-256 AFD divergiu do vetor independente.';
+  end if;
+
+  if public.rep_afd_v004_mark_hash(1, '2026-01-02T13:03:42+00'::timestamptz, '52998224725', '2026-01-02T13:03:59+00'::timestamptz, '02', false, repeat('a', 64), 'America/Sao_Paulo') <> '2175f4c09a0cb097834bbdb87659d44b8aa86ae45c778e208175eb58389cdb81' then
+    raise exception 'Encadeamento do hash anterior divergiu do vetor de teste.';
   end if;
 
   if not public.rep_is_valid_cpf('52998224725')
