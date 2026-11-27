@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { store } from './db.js';
-import { registerRepPunch } from './rep-p.js';
+import { listRepPunchesToday, registerRepPunch } from './rep-p.js';
 
 const PORT = Number(process.env.PORT || 5176);
 
@@ -74,6 +74,7 @@ const routes = {
   '/api/punches/today': (body) => store.todayPunches(body.employeeId, body.pin),
   '/api/punches/register': (body) => store.registerPunch(body.employeeId, body.pin, body.type, body.requestId),
   '/api/rep-p/register': (body) => registerRepPunch(body),
+  '/api/rep-p/today': (body) => listRepPunchesToday(body),
   '/api/punches/between': (body, token) => (store.adminSession(token) ? store.punchesBetween(body.start, body.end) : { ok: false, error: 'Entre como administrador.', punches: [] }),
   '/api/justifications/between': (body, token) => (store.adminSession(token) ? store.justificationsBetween(body.start, body.end) : { ok: false, error: 'Entre como administrador.', justifications: [] }),
   '/api/employees/save': (body, token) => (store.adminSession(token) ? store.saveEmployee(body) : { ok: false, error: 'Entre como administrador.' }),
@@ -96,12 +97,12 @@ const server = createServer(async (req, res) => {
     vary: 'Origin',
   } : {};
 
-  if (req.url === '/api/rep-p/register' && origin && origin !== allowedOrigin) {
+  if (['/api/rep-p/register', '/api/rep-p/today'].includes(req.url) && origin && origin !== allowedOrigin) {
     send(res, 403, { ok: false, error: 'Origem não autorizada.' });
     return;
   }
 
-  if (req.method === 'OPTIONS' && req.url === '/api/rep-p/register' && corsHeaders['access-control-allow-origin']) {
+  if (req.method === 'OPTIONS' && ['/api/rep-p/register', '/api/rep-p/today'].includes(req.url) && corsHeaders['access-control-allow-origin']) {
     res.writeHead(204, corsHeaders);
     res.end();
     return;
