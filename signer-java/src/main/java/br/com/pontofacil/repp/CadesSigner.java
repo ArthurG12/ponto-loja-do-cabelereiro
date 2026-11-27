@@ -220,8 +220,11 @@ final class CadesSigner {
     }
 
     private void verifyGeneratedSignature(byte[] content, byte[] signature) throws Exception {
+        if (new CMSSignedData(signature).getSignedContent() != null) {
+            throw new SecurityException("Generated CMS unexpectedly embeds the signed content");
+        }
         CMSSignedData cms = new CMSSignedData(new CMSProcessableByteArray(content), signature);
-        if (cms.getSignedContent() == null || cms.getSignerInfos().size() != 1) throw new SecurityException("CMS is not detached single-signer CAdES");
+        if (cms.getSignerInfos().size() != 1) throw new SecurityException("CMS must contain exactly one signer");
         SignerInformation signer = cms.getSignerInfos().getSigners().iterator().next();
         if (!signer.verify(new JcaSimpleSignerInfoVerifierBuilder().setProvider("BC").build(signerCertificate))) {
             throw new SecurityException("Generated CMS signature did not verify");
@@ -240,6 +243,7 @@ final class CadesSigner {
         if (!CMSObjectIdentifiers.data.equals(contentType)) throw new SecurityException("Unexpected CMS contentType");
         SigningCertificateV2 scv2 = SigningCertificateV2.getInstance(sc.getAttrValues().getObjectAt(0));
         if (scv2.getCerts().length != 1
+                || !NISTObjectIdentifiers.id_sha256.equals(scv2.getCerts()[0].getHashAlgorithm().getAlgorithm())
                 || !MessageDigest.isEqual(scv2.getCerts()[0].getCertHash(),
                     MessageDigest.getInstance("SHA-256").digest(signerCertificate.getEncoded()))) {
             throw new SecurityException("signingCertificateV2 does not identify the signer certificate");
@@ -250,7 +254,10 @@ final class CadesSigner {
             throw new SecurityException("CAdES signature policy identifier mismatch");
         }
         ASN1Sequence hashSequence = ASN1Sequence.getInstance(policySequence.getObjectAt(1));
-        if (!MessageDigest.isEqual(ASN1OctetString.getInstance(hashSequence.getObjectAt(1)).getOctets(), policy.attributeHash)) {
+        String policyHashAlgorithm = ASN1ObjectIdentifier.getInstance(
+                ASN1Sequence.getInstance(hashSequence.getObjectAt(0)).getObjectAt(0)).getId();
+        if (!SHA256_OID.equals(policyHashAlgorithm)
+                || !MessageDigest.isEqual(ASN1OctetString.getInstance(hashSequence.getObjectAt(1)).getOctets(), policy.attributeHash)) {
             throw new SecurityException("CAdES signature policy hash mismatch");
         }
     }
@@ -265,9 +272,12 @@ final class CadesSigner {
 
     private static void verifyDetachedCms(byte[] content, byte[] signature,
             Set<TrustAnchor> anchors, boolean validateChain) throws Exception {
+        if (new CMSSignedData(signature).getSignedContent() != null) {
+            throw new SecurityException("LPA signature must be detached");
+        }
         CMSSignedData cms = new CMSSignedData(new CMSProcessableByteArray(content), signature);
-        if (cms.getSignedContent() == null || cms.getSignerInfos().size() != 1) {
-            throw new SecurityException("LPA signature must be detached and have exactly one signer");
+        if (cms.getSignerInfos().size() != 1) {
+            throw new SecurityException("LPA signature must have exactly one signer");
         }
         Store<X509CertificateHolder> store = cms.getCertificates();
         SignerInformation signer = cms.getSignerInfos().getSigners().iterator().next();
