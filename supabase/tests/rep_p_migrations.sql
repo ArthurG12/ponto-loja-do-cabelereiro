@@ -146,8 +146,21 @@ begin
      or has_function_privilege('authenticated', 'public.append_rep_afd_event(uuid,text,jsonb,timestamptz,uuid)', 'EXECUTE')
      or has_function_privilege('anon', 'public.register_time_mark(uuid,text,public.punch_kind,uuid,text,text)', 'EXECUTE')
      or has_function_privilege('authenticated', 'public.register_time_mark(uuid,text,public.punch_kind,uuid,text,text)', 'EXECUTE')
-     or has_function_privilege('anon', 'public.admin_save_employee(uuid,text,text,text,boolean,text)', 'EXECUTE') then
-    raise exception 'Função interna REP-P executável por usuário não confiável.';
+     or has_function_privilege('anon', 'public.admin_save_employee(uuid,text,text,text,boolean,text)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.list_active_employees()', 'EXECUTE')
+     or has_function_privilege('authenticated', 'public.list_active_employees()', 'EXECUTE')
+     or has_function_privilege('anon', 'public.verify_employee_pin(uuid,text)', 'EXECUTE')
+     or has_function_privilege('authenticated', 'public.verify_employee_pin(uuid,text)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.list_employee_punches(uuid,text,date)', 'EXECUTE')
+     or has_function_privilege('authenticated', 'public.list_employee_punches(uuid,text,date)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.register_punch(uuid,text,public.punch_kind,uuid)', 'EXECUTE')
+     or has_function_privilege('authenticated', 'public.register_punch(uuid,text,public.punch_kind,uuid)', 'EXECUTE')
+     or has_function_privilege('authenticated', 'public.admin_save_employee(uuid,text,text,text,boolean)', 'EXECUTE') then
+    raise exception 'RPC legada ou função interna REP-P executável por papel não confiável.';
+  end if;
+
+  if not has_function_privilege('service_role', 'public.list_employee_punches(uuid,text,date)', 'EXECUTE') then
+    raise exception 'Backend perdeu acesso à consulta do histórico legado.';
   end if;
 end;
 $$;
