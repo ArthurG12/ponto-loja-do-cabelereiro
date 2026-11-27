@@ -171,7 +171,7 @@ final class CadesSigner {
                 : key instanceof ECKey ? "SHA256withECDSA" : null;
         if (algorithm == null) throw new SecurityException("Unsupported signing key algorithm");
         verifyKeyPair(key, leaf, algorithm);
-        return new CadesSigner(key, leaf, chain, anchors, algorithm,
+        return new CadesSigner(key, leaf, chain, anchors, algorithm, policy,
                 actualFingerprint, cpf, environment, policyVersion, lpa, lpaSignature);
     }
 
