@@ -123,7 +123,7 @@ final class CadesSigner {
         if (!policy.nextUpdate.isAfter(Instant.now())
                 || policy.notBefore.isAfter(Instant.now())
                 || !policy.notAfter.isAfter(Instant.now())
-                || policy.revoked) {
+                || (policy.revocationDate != null && !policy.revocationDate.isAfter(Instant.now()))) {
             throw new SecurityException("CAdES policy is expired, not yet valid, revoked, or LPA is stale");
         }
 
@@ -395,7 +395,7 @@ final class CadesSigner {
             String expectedOid, String expectedUri, String version, String attributeHashHex) throws Exception {
         ASN1Sequence root = ASN1Sequence.getInstance(ASN1Primitive.fromByteArray(lpaDer));
         int offset = root.size() == 3 ? 1 : 0;
-        if (offset == 1 && !ASN1Integer.getInstance(root.getObjectAt(0)).hasValue(BigInteger.ZERO)) {
+        if (offset == 1 && !ASN1Integer.getInstance(root.getObjectAt(0)).getValue().equals(BigInteger.ZERO)) {
             throw new SecurityException("Unsupported LPA version");
         }
         if (root.size() - offset != 2) throw new SecurityException("Unsupported LPA ASN.1 structure");
@@ -480,5 +480,5 @@ final class CadesSigner {
                 .withZone(ZoneOffset.UTC).format(value);
     }
     record Policy(String oid, String version, Instant notBefore, Instant notAfter,
-            Instant nextUpdate, boolean revoked, byte[] attributeHash, String lpaSha256) {}
+            Instant nextUpdate, Instant revocationDate, byte[] attributeHash, String lpaSha256) {}
 }
