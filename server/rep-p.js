@@ -19,7 +19,7 @@ const allowedTypes = new Set(['entrada', 'saida_intervalo', 'retorno_intervalo',
 
 export async function registerRepPunch(input) {
   if (!configured || !supabase) {
-    return { ok: false, error: 'Registro REP-P indisponível: configure SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY e REP_COLLECTOR_ID no servidor.' };
+    return { ok: false, error: 'Registro REP-P indisponível: configure SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, REP_COLLECTOR_ID e REP_COLLECTOR_TYPE no servidor.' };
   }
 
   const employeeId = String(input?.employeeId || '');
@@ -43,7 +43,7 @@ export async function registerRepPunch(input) {
 
   if (error) {
     const message = error.message || '';
-    if (/senha inválida|muitas tentativas|funcionário|funcionario|marcação|marcacao|estabelecimento|próxima marcação|proxima marcacao|já foram realizadas/i.test(message)) {
+    if (/senha inválida|muitas tentativas|funcionário|funcionario|marcação|marcacao|estabelecimento|CPF|cpf|próxima marcação|proxima marcacao|já foram realizadas/i.test(message)) {
       return { ok: false, error: message.replace(/^P0001:\s*/, '') };
     }
     console.error('Falha no registro REP-P:', error.code || 'sem código');
