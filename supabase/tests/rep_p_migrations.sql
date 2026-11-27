@@ -1,5 +1,5 @@
 -- Teste de integração das migrations REP-P em PostgreSQL limpo.
--- Executado pelo GitHub Actions após schema.sql e migrations 001–015.
+-- Executado pelo GitHub Actions após schema.sql e migrations 001–017.
 
 do $$
 declare
@@ -22,6 +22,10 @@ begin
     raise exception 'Novo usuário Auth não foi criado como employee.';
   end if;
 
+  update public.profiles set role = 'admin'::public.app_role where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  perform set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
+  perform public.admin_set_responsible_cpf('52998224725');
+
   insert into public.employees (full_name, schedule_code, active, pin_hash, cpf)
   values ('Funcionário de teste', 'A', true, crypt('1234', gen_salt('bf')), '52998224725')
   returning id, establishment_id into employee_uuid, establishment_uuid;
@@ -36,6 +40,7 @@ begin
       and nsr = 1 and record_type = '5'
       and record_payload->>'operation' = 'I'
       and record_payload->>'cpf' = '52998224725'
+      and record_payload->>'responsible_cpf' = '52998224725'
       and record_payload->>'full_name' = 'Funcionário de teste'
   ) then
     raise exception 'Inclusão de empregado não gerou AFD tipo 5 com snapshot cadastral.';
@@ -52,6 +57,7 @@ begin
       and record_payload->>'operation' = 'A'
       and record_payload->>'full_name' = 'Funcionário de teste atualizado'
       and record_payload->>'schedule_code' = 'B'
+      and record_payload->>'responsible_cpf' = '52998224725'
   ) then
     raise exception 'Alteração de empregado não gerou AFD tipo 5.';
   end if;
@@ -156,6 +162,7 @@ begin
       and nsr = 5 and record_type = '5'
       and record_payload->>'operation' = 'E'
       and record_payload->>'active' = 'false'
+      and record_payload->>'responsible_cpf' = '52998224725'
   ) then
     raise exception 'Desativação de empregado não gerou evento AFD tipo 5.';
   end if;
@@ -165,6 +172,7 @@ begin
      set role = 'admin'::public.app_role
    where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   perform set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
+  update public.profiles set cpf = null where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
   begin
     perform public.admin_save_establishment(
