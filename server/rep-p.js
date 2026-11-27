@@ -3,9 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.SUPABASE_URL || '';
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const collectorId = process.env.REP_COLLECTOR_ID || '';
+const collectorType = process.env.REP_COLLECTOR_TYPE || '';
 const configured = /^https:\/\//.test(supabaseUrl)
   && serviceRoleKey.length >= 20
-  && collectorId.trim().length >= 3;
+  && collectorId.trim().length >= 3
+  && ['01', '02', '03', '04', '05'].includes(collectorType);
 
 const supabase = configured
   ? createClient(supabaseUrl, serviceRoleKey, {
@@ -36,6 +38,7 @@ export async function registerRepPunch(input) {
     p_punch_type: type,
     p_client_request_id: requestId,
     p_collector_id: collectorId.trim(),
+    p_collector_type: collectorType,
   });
 
   if (error) {
