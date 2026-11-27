@@ -47,7 +47,11 @@ export async function registerRepPunch(input) {
     return { ok: false, error: 'Não foi possível registrar a marcação. Tente novamente.' };
   }
 
-  const mark = Array.isArray(data) ? data[0] : data;
+  if (data?.ok === false) {
+    return { ok: false, error: data.error || 'Não foi possível validar a senha.' };
+  }
+
+  const mark = data?.punch || (Array.isArray(data) ? data[0] : data);
   if (!mark?.id || !mark?.nsr || !mark?.recorded_at) {
     return { ok: false, error: 'O servidor não retornou a confirmação da marcação.' };
   }
