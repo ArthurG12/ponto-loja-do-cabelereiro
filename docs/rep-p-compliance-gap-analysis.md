@@ -89,6 +89,12 @@ Um trigger `AFTER INSERT OR UPDATE` na tabela `employees` gera o registro AFD ti
 
 O frontend remoto não chama mais diretamente as RPCs legadas `list_active_employees`, `verify_employee_pin`, `list_employee_punches` ou `register_punch`. A equipe e o histórico legado passam pelo backend confiável; `list_employee_punches` permanece executável apenas por `service_role`. Sem `VITE_REP_API_URL`, a marcação remota falha de forma fechada em vez de gravar em `punches`. Isso reduz a superfície exposta, mas não substitui rate limiting no backend nem a validação de sessões Auth e RLS.
 
+## 3.5. Módulo de serialização AFD v004 (em desenvolvimento)
+
+O módulo `server/afd-v004.js` implementa a montagem dos registros tipo 1 (cabeçalho), 2, 4, 5, 6 e 7, trailer tipo 9 e marcador de assinatura destacado. Aplica ISO-8859-1, CRLF, campos de largura fixa, NSR crescente, CRC-16/KERMIT nos tipos 1 a 5 e conferência SHA-256 encadeada nos registros tipo 7. O teste de referência do CRC `123456789 = 2189` está automatizado.
+
+A geração é deliberadamente bloqueada se faltar o número de registro INPI, identificação do empregador/desenvolvedor, dados obrigatórios ou se a cadeia tipo 7 não corresponder ao algoritmo candidato já gravado. O módulo ainda não está ligado a uma rota de download nem assina o arquivo: a assinatura destacada CAdES ICP-Brasil e o acesso autenticado/limitado ao AFD continuam pendentes. O hash tipo 7 ainda requer validação independente, portanto não deve ser tratado como homologado.
+
 ## 4. Cuidados de implementação
 
 1. Não converter o hash JSON atual em hash AFD por aproximação. A serialização dos campos que alimentam o SHA-256 precisa ser implementada literalmente conforme o leiaute e coberta por testes independentes.
@@ -103,7 +109,7 @@ O frontend remoto não chama mais diretamente as RPCs legadas `list_active_emplo
 1. Migration 008 cria a primeira versão do livro imutável rep_ledger, metadados iniciais do empregador e a API de inclusão de eventos AFD com NSR compartilhado.
 2. Completar os metadados do desenvolvedor e do coletor, além de integrar alterações de empregados como registros AFD tipo 5 e preservar snapshots de identificação e horário.
 3. Validar a serialização candidata do hash tipo 7 com segunda implementação independente; depois criar o verificador completo de cadeia.
-4. Implementar gerador AFD 004 e validador estrutural/CRC/hash.
+4. Integrar o módulo AFD v004 já iniciado a uma consulta autenticada e limitada ao ledger, depois de validar o hash tipo 7 com implementação independente.
 5. Implementar PTRP, AEJ 002 e Espelho de Ponto.
 6. Implementar assinatura ICP-Brasil e comprovante PDF PAdES.
 7. Configurar sincronismo HLB, monitoramento, redundância, backup e recuperação.
