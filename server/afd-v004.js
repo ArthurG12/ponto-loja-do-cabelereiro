@@ -40,8 +40,9 @@ function dh(value, timezone) {
     hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
   }).formatToParts(date);
   const part = (type) => parts.find((item) => item.type === type)?.value;
+  const minuteTimestamp = Math.floor(date.getTime() / 60000) * 60000;
   const localAsUtc = Date.UTC(Number(part('year')), Number(part('month')) - 1, Number(part('day')), Number(part('hour')), Number(part('minute')));
-  const offsetMinutes = Math.round((localAsUtc - date.getTime()) / 60000);
+  const offsetMinutes = Math.round((localAsUtc - minuteTimestamp) / 60000);
   const sign = offsetMinutes < 0 ? '-' : '+';
   const absolute = Math.abs(offsetMinutes);
   return `${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}:00${sign}${String(Math.floor(absolute / 60)).padStart(2, '0')}${String(absolute % 60).padStart(2, '0')}`;
@@ -153,7 +154,9 @@ export function buildAfdV004({ header, records, includeSignatureMarker = true })
   const ordered = [...records].sort((a, b) => Number(a.nsr) - Number(b.nsr));
   const seen = new Set();
   let previousNsr = 0;
-  const lines = [serializeHeader(header)];
+  const headerLine = serializeHeader(header);
+  assert(headerLine.slice(-4) === crc16Kermit(headerLine.slice(0, -4)), 'CRC-16/KERMIT inválido no cabeçalho AFD.');
+  const lines = [headerLine];
   const counts = { '2': 0, '3': 0, '4': 0, '5': 0, '6': 0, '7': 0 };
 
   for (const record of ordered) {
@@ -163,7 +166,21 @@ export function buildAfdV004({ header, records, includeSignatureMarker = true })
     seen.add(nsr);
     previousNsr = nsr;
     const type = String(record.record_type);
-    lines.push(serializeRecord(record, header.timezone));
+    const line = serializeRecord(record, header.timezone);
+    if (type === '7') {
+      const previousType7 = [...ordered.slice(0, ordered.indexOf(record))].reverse().find((item) => String(item.record_type) === '7');
+      const payload = record.record_payload || {};
+      const expectedHash = candidateType7Hash({
+        nsr: record.nsr, markedAt: payload.recorded_at,
+        cpf: payload.employee_cpf_snapshot,
+        recordedAt: payload.recorded_on || payload.created_at,
+        collectorType: payload.collector_type, isOffline: payload.is_offline,
+        previousHash: previousType7?.record_hash || null,
+        timezone: payload.timezone || header.timezone,
+      });
+      assert(record.record_hash === expectedHash, 'Hash do registro tipo 7 diverge da cadeia SHA-256 candidata; exportação bloqueada.');
+    }
+    lines.push(line);
     counts[type] += 1;
   }
 
@@ -197,6 +214,7 @@ export function validateAfdV004(input) {
   if (lines.some((line) => line.length === 0)) errors.push('Arquivo contém linha em branco.');
   if (lines.length < 3) errors.push('AFD deve conter cabeçalho, trailer e marcador de assinatura.');
   if (lines[0]?.length !== 303 || lines[0]?.[9] !== '1') errors.push('Cabeçalho AFD inválido.');
+  if (lines[0]?.length === 303 && lines[0].slice(-4) !== crc16Kermit(lines[0].slice(0, -4))) errors.push('CRC-16/KERMIT inválido no cabeçalho AFD.');
   if (lines.at(-1)?.length !== 100 || !lines.at(-1)?.startsWith(SIGNATURE_MARKER)) errors.push('Marcador de assinatura AFD inválido.');
   const trailer = lines.at(-2) || '';
   if (trailer.length !== 64 || trailer.slice(0, 9) !== '999999999' || trailer.at(-1) !== '9') errors.push('Trailer AFD inválido.');
