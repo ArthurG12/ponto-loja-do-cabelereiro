@@ -91,7 +91,7 @@ function serializeHeader(header) {
     + inpi + startDate + endDate + dh(header.generated_at, header.timezone)
     + '004' + developerType + developerDocument
     + textField('', 30, 'Modelo REP-C');
-  assert(prefix.length === 299, `Cabeçalho AFD com tamanho inesperado: ${prefix.length}.`);
+  assert(prefix.length === 298, `Cabeçalho AFD com tamanho inesperado: ${prefix.length}.`);
   return withCrc(prefix);
 }
 
@@ -219,8 +219,8 @@ export function validateAfdV004(input) {
   if (lines.at(-1) === '') lines.pop();
   if (lines.some((line) => line.length === 0)) errors.push('Arquivo contém linha em branco.');
   if (lines.length < 3) errors.push('AFD deve conter cabeçalho, trailer e marcador de assinatura.');
-  if (lines[0]?.length !== 303 || lines[0]?.[9] !== '1') errors.push('Cabeçalho AFD inválido.');
-  if (lines[0]?.length === 303 && lines[0].slice(-4) !== crc16Kermit(lines[0].slice(0, -4))) errors.push('CRC-16/KERMIT inválido no cabeçalho AFD.');
+  if (lines[0]?.length !== 302 || lines[0]?.[9] !== '1') errors.push('Cabeçalho AFD inválido.');
+  if (lines[0]?.length === 302 && lines[0].slice(-4) !== crc16Kermit(lines[0].slice(0, -4))) errors.push('CRC-16/KERMIT inválido no cabeçalho AFD.');
   if (lines.at(-1)?.length !== 100 || !lines.at(-1)?.startsWith(SIGNATURE_MARKER)) errors.push('Marcador de assinatura AFD inválido.');
   const trailer = lines.at(-2) || '';
   if (trailer.length !== 64 || trailer.slice(0, 9) !== '999999999' || trailer.at(-1) !== '9') errors.push('Trailer AFD inválido.');
