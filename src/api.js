@@ -77,7 +77,24 @@ const remoteApi = {
       p_day: saoPauloParts().dayKey,
     });
     if (error) return { ok: false, error: messageFrom(error, 'Não foi possível carregar as marcações de hoje.') };
-    return { ok: true, punches: data || [] };
+
+    if (!repApiUrl) return { ok: true, punches: data || [] };
+
+    try {
+      const response = await fetch(`${repApiUrl}/api/rep-p/today`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ employeeId, pin, day: saoPauloParts().dayKey }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result?.ok) {
+        return { ok: false, error: result?.error || 'Não foi possível carregar as marcações REP-P.' };
+      }
+      return { ok: true, punches: [...(data || []), ...(result.punches || [])]
+        .sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at)) };
+    } catch {
+      return { ok: false, error: 'Servidor REP-P indisponível. Não foi possível consultar as marcações.' };
+    }
   },
   async registerPunch(employeeId, pin, type, requestId) {
     if (repApiUrl) {
@@ -109,7 +126,24 @@ const remoteApi = {
   async punchesBetween(start, end) {
     const { data, error } = await supabase.from('punches').select('id,employee_id,punch_type,recorded_at,source,voided_at,void_reason').gte('recorded_at', start).lt('recorded_at', end).order('recorded_at');
     if (error) return { ok: false, error: messageFrom(error, 'Não foi possível carregar os registros.'), punches: [] };
-    return { ok: true, punches: data || [] };
+
+    if (!repApiUrl) return { ok: true, punches: data || [] };
+
+    const { data: repMarks, error: repError } = await supabase
+      .from('time_marks')
+      .select('id,employee_id,punch_type,recorded_at,source,nsr')
+      .gte('recorded_at', start)
+      .lt('recorded_at', end)
+      .order('recorded_at');
+    if (repError) {
+      return { ok: false, error: messageFrom(repError, 'Não foi possível carregar as marcações REP-P.'), punches: [] };
+    }
+
+    const combined = [
+      ...(data || []),
+      ...(repMarks || []).map((mark) => ({ ...mark, voided_at: null, void_reason: null })),
+    ].sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at));
+    return { ok: true, punches: combined };
   },
   async justificationsBetween(start, end) {
     const { data, error } = await supabase.from('justifications').select('id,employee_id,category,starts_at,ends_at,notes').lte('starts_at', end).gte('ends_at', start);
