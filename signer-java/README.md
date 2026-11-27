@@ -13,7 +13,7 @@ REP_CADES_SERVICE_TOKEN='use-a-local-secret-of-at-least-32-characters' mvn packa
 REP_CADES_SERVICE_TOKEN='use-a-local-secret-of-at-least-32-characters' java -jar target/rep-p-cades-signer-0.1.0-SNAPSHOT.jar
 ```
 
-O JAR ainda não é executável por manifesto; para executar durante o desenvolvimento use a classe principal pelo IDE ou adicione um launcher quando o empacotamento de produção estiver definido.
+O JAR possui classe principal configurada. A execução local serve apenas para validar o comportamento fail-closed; não o exponha à rede pública.
 
 ## Endpoints atuais
 
