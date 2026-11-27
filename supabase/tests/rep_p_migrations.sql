@@ -1,5 +1,5 @@
 -- Teste de integração das migrations REP-P em PostgreSQL limpo.
--- Executado pelo GitHub Actions após schema.sql e migrations 001–012.
+-- Executado pelo GitHub Actions após schema.sql e migrations 001–014.
 
 do $$
 declare
@@ -207,6 +207,48 @@ begin
     raise exception 'Livro AFD deveria conter seis eventos após a alteração do empregador.';
   end if;
 
+
+  -- Tipo 4: ajuste explícito do relógio, com segundos e CPF do responsável.
+  event_result := public.admin_adjust_rep_clock(
+    establishment_uuid,
+    '2026-11-27T12:00:10-03:00'::timestamptz,
+    '2026-11-27T12:00:40-03:00'::timestamptz
+  );
+  if event_result->>'ok' <> 'true'
+     or (event_result->>'nsr')::bigint <> 7
+     or event_result->>'record_type' <> '4' then
+    raise exception 'Ajuste do relógio não consumiu o NSR compartilhado: %', event_result;
+  end if;
+
+  if not exists (
+    select 1 from public.rep_ledger
+     where establishment_id = establishment_uuid
+       and nsr = 7 and record_type = '4'
+       and record_payload->>'before_at' = '2026-11-27T12:00:10-0300'
+       and record_payload->>'adjusted_at' = '2026-11-27T12:00:40-0300'
+       and record_payload->>'responsible_cpf' = '52998224725'
+       and length(record_payload->>'recorded_at') = 24
+       and record_payload->>'adjustment_seconds' = '30.000000'
+  ) then
+    raise exception 'Registro AFD tipo 4 incompleto ou com formato DH incorreto.';
+  end if;
+
+  begin
+    perform public.admin_adjust_rep_clock(
+      establishment_uuid,
+      '2026-11-27T12:00:10-03:00'::timestamptz,
+      '2026-11-27T12:00:10-03:00'::timestamptz
+    );
+    raise exception 'Ajuste sem diferença deveria ser rejeitado.';
+  exception when raise_exception then
+    if sqlerrm = 'Ajuste sem diferença deveria ser rejeitado.' then raise; end if;
+    if sqlerrm not like '%instantes válidos e distintos%' then raise; end if;
+  end;
+
+  if (select count(*) from public.rep_ledger where establishment_id = establishment_uuid) <> 7 then
+    raise exception 'Tentativa inválida alterou o livro AFD.';
+  end if;
+
   if public.rep_afd_format_dh('2026-01-02T13:03:42+00'::timestamptz, 'America/Sao_Paulo') <> '2026-01-02T10:03:00-0300' then
     raise exception 'Formatação DH AFD incorreta.';
   end if;
@@ -241,8 +283,13 @@ begin
      or has_function_privilege('authenticated', 'public.register_punch(uuid,text,public.punch_kind,uuid)', 'EXECUTE')
      or has_function_privilege('authenticated', 'public.admin_save_employee(uuid,text,text,text,boolean)', 'EXECUTE')
      or has_function_privilege('anon', 'public.admin_save_establishment(uuid,text,text,text,text,text)', 'EXECUTE')
-     or has_function_privilege('anon', 'public.admin_set_responsible_cpf(text)', 'EXECUTE') then
+     or has_function_privilege('anon', 'public.admin_set_responsible_cpf(text)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.admin_adjust_rep_clock(uuid,timestamptz,timestamptz)', 'EXECUTE') then
     raise exception 'RPC legada ou função interna REP-P executável por papel não confiável.';
+  end if;
+
+  if not has_function_privilege('authenticated', 'public.admin_adjust_rep_clock(uuid,timestamptz,timestamptz)', 'EXECUTE') then
+    raise exception 'Administrador autenticado perdeu acesso à RPC de ajuste do relógio.';
   end if;
 
   if not has_function_privilege('service_role', 'public.list_employee_punches(uuid,text,date)', 'EXECUTE') then
