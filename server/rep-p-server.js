@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { pathToFileURL } from 'node:url';
 import { listRepPunchesToday, registerRepPunch } from './rep-p.js';
 
 const PORT = Number(process.env.PORT || 5176);
@@ -158,7 +159,9 @@ export function createRepServer() {
   return server;
 }
 
-const server = createRepServer();
-server.listen(PORT, HOST, () => {
-  console.log(`API REP-P em http://${HOST}:${PORT}`);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const server = createRepServer();
+  server.listen(PORT, HOST, () => {
+    console.log(`API REP-P em http://${HOST}:${PORT}`);
+  });
+}
