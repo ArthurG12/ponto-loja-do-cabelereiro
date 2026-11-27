@@ -4,7 +4,7 @@
 
 ## Componentes implementados
 
-- Serviço HTTP isolado com autenticação Bearer serviço-a-serviço, limite de corpo, JSON estrito (sem campos duplicados, extras ou valores JSON concatenados), validação de Content-Type/Content-Length, respostas sem cache, erros 400/413/415 apropriados, fila de workers limitada e encerramento gracioso do executor.
+- Serviço HTTP isolado com autenticação Bearer serviço-a-serviço, limite de corpo, JSON estrito (sem campos duplicados, extras ou valores JSON concatenados), validação de Content-Type/Content-Length, respostas sem cache, erros 400/413/415 apropriados, fila de workers limitada, apenas uma assinatura pesada simultânea (backpressure 503/Retry-After) e encerramento gracioso do executor.
 - Verificação de LPA CAdES detached: CMS/PKCS#7 sobre os bytes DER exatos, certificado do signatário, caminho até trust anchors provisionados, validade e revogação com PKIX/OCSP/CRL em modo fail-closed.
 - Integridade por SHA-256 pinado independentemente para LPA DER e assinatura .p7s.
 - Leitura ASN.1 da LPA: nextUpdate, OID, URI, período e revogação da política.
@@ -56,7 +56,7 @@ A porta não deve ser publicada na Internet. Use rede privada e TLS/mTLS na fron
 
 ## Testes e limites ainda abertos
 
-- CI Maven/JDK 21 cobre compilação, pacote, controles de token, parsing ASN.1 da LPA/PA, limites de vigência de 90 dias, rejeição de JSON ambíguo, algoritmo AD-RB 2.4 (RSA mínimo 2048; EC rejeitado) e geração/verificação CMS detached com chave RSA efêmera de teste.
+- CI Maven/JDK 21 cobre compilação, pacote, controles de token, parsing ASN.1 da LPA/PA, limites de vigência de 90 dias, rejeição de JSON ambíguo/aninhado, capacidade Base64 para AFD de 25 MB, algoritmo AD-RB 2.4 (RSA mínimo 2048; EC rejeitado) e geração/verificação CMS detached com chave RSA efêmera de teste.
 - Vetores sintéticos não demonstram que os artefatos oficiais atuais, a cadeia ICP-Brasil ou o certificado real do desenvolvedor serão aceitos.
 - Ainda são necessários testes de integração com LPA CAdES oficial assinada pelo ITI, trust anchors oficiais pinados, respostas OCSP/CRL reais, certificado ICP-Brasil válido do desenvolvedor e verificação por uma segunda implementação independente.
 - A validação da revogação depende de conectividade aos respondedores OCSP/CRL; indisponibilidade ou resultado inconclusivo bloqueia. O serviço configura timeouts de conexão/leitura de 10 segundos para OCSP, LCR e recuperação de certificados, sem opção `SOFT_FAIL`.
