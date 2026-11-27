@@ -210,7 +210,7 @@ export function buildAfdV004({ header, records, includeSignatureMarker = true })
 export function validateAfdV004(input) {
   const buffer = Buffer.isBuffer(input) ? input : Buffer.from(input);
   const errors = [];
-  if (buffer.includes(0x0a) && buffer.toString('latin1').replace(/\r\n/g, '').includes('\n')) {
+  if (buffer.toString('latin1').replace(/\\r\\n/g, '').match(/[\\r\\n]/)) {
     errors.push('Quebra de linha diferente de CRLF.');
   }
   const content = buffer.toString('latin1');
