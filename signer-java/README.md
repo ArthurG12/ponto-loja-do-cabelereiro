@@ -41,6 +41,20 @@ Os arquivos devem ser montados por secret manager/volume protegido, fora do Git 
 | REP_CADES_DEVELOPER_CPF | CPF do desenvolvedor para correspondência com o Subject do certificado |
 | REP_CADES_ENVIRONMENT | deve ser production; qualquer outro valor bloqueia o serviço |
 
+### Obtenção dos artefatos oficiais
+
+A política CAdES AD-RB 2.4 existe e está listada pelo ITI com OID `2.16.76.1.7.1.1.2.4`; não confundir com a tabela separada de versões XAdES. A página AD-RB do ITI publica o arquivo DER `PA_AD_RB_v2_4.der` e seu sidecar SHA-256. A LPA CAdES vigente, sua assinatura detached e os sidecars estão na página oficial de LPA.
+
+Para baixar os três artefatos e conferir os sidecars publicados, execute em uma máquina de provisionamento confiável:
+
+```sh
+bash signer-java/scripts/fetch-iti-cades-artifacts.sh /secure/rep-p/iti-cades
+```
+
+O script baixa `LPA_CAdES.der`, `LPA_CAdES.p7s` e `PA_AD_RB_v2_4.der`, além dos sidecars. Ele apenas compara os arquivos com os hashes publicados pelo próprio ITI; **isso não substitui** a validação da assinatura CMS da LPA contra as raízes ICP-Brasil pinadas independentemente, nem valida por si só a cadeia/revogação. Confira a URI e o hash da PA na LPA assinada e só então preencha as variáveis de ambiente. Não copie os artefatos para o Git.
+
+Fontes oficiais: [lista de políticas/LPA CAdES](https://www.gov.br/iti/pt-br/assuntos/repositorio/lista-de-politicas-de-assinatura) e [políticas AD-RB, incluindo CAdES 2.4](https://www.gov.br/iti/pt-br/assuntos/repositorio/assinatura-digital-com-referencia-basica-ad-rb).
+
 Não adicione certificados, chaves, senhas, hashes de produção não conferidos ou dados pessoais ao repositório. Para a PA CAdES AD-RB 2.4, o bundle deve conter exatamente as raízes ICP-Brasil v5 e v12 indicadas no DOC-ICP-15.03 v9.1, obtidas do repositório oficial e aprovadas por fingerprint SHA-256 independente. A âncora de confiança e os pins não podem ser copiados cegamente da própria LPA.
 
 Para conferir o pin do bundle de âncoras, calcule o SHA-256 dos bytes exatos do arquivo provisionado (por exemplo, sha256sum trust-anchors.pem). Os hashes da LPA DER e do arquivo .p7s devem ser confrontados com os sidecars oficiais do ITI e aprovados por canal independente. Já REP_CADES_POLICY_ATTRIBUTE_SHA256 **não** é o SHA-256 do arquivo DER inteiro: é SHA-256 sobre a concatenação das codificações DER de `SignPolicyHashAlg` e `SignPolicyInfo`, excluindo o tag e o comprimento da `SEQUENCE` externa, conforme RFC 3125 seção 3.1. O serviço recomputa esse valor e compara com o `SignPolicyHash` embutido quando presente e com o valor configurado para `sigPolicyId`. O `AlgorithmIdentifier` SHA-256 exige parâmetros ausentes. Não use um valor inferido ou copiado sem validar a estrutura ASN.1 da PA.
