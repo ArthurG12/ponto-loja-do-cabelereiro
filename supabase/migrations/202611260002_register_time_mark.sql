@@ -25,6 +25,11 @@ declare
   previous_record_hash text;
   trusted_recorded_at timestamptz;
   canonical_payload jsonb;
+  local_day date;
+  mark_sequence public.punch_kind[];
+  last_type public.punch_kind;
+  expected_type public.punch_kind;
+  sequence_index integer;
 begin
   if p_client_request_id is null then
     raise exception 'Identificador da solicitação é obrigatório.';
@@ -62,6 +67,29 @@ begin
   end if;
 
   trusted_recorded_at := clock_timestamp();
+  local_day := (trusted_recorded_at at time zone establishment_row.timezone)::date;
+  mark_sequence := public.punch_sequence_for(employee_row.schedule_code, local_day);
+
+  select punch_type into last_type
+  from public.time_marks
+  where employee_id = employee_row.id
+    and (recorded_at at time zone establishment_row.timezone)::date = local_day
+  order by nsr desc
+  limit 1;
+
+  if last_type is null then
+    expected_type := mark_sequence[1];
+  else
+    sequence_index := array_position(mark_sequence, last_type);
+    if sequence_index is null or sequence_index >= array_length(mark_sequence, 1) then
+      raise exception 'As marcações previstas para hoje já foram realizadas.';
+    end if;
+    expected_type := mark_sequence[sequence_index + 1];
+  end if;
+
+  if p_punch_type is distinct from expected_type then
+    raise exception 'A próxima marcação esperada é %.', public.punch_label(expected_type);
+  end if;
 
   -- O incremento bloqueia a linha da sequência até o fim da transação.
   -- Assim, NSR e cadeia de hashes são serializados por estabelecimento.
@@ -111,7 +139,7 @@ begin
     btrim(p_collector_id),
     p_client_request_id,
     previous_record_hash,
-    encode(extensions.digest(convert_to(canonical_payload::text, 'UTF8'), 'sha256'), 'hex')
+    encode(digest(convert_to(canonical_payload::text, 'UTF8'), 'sha256'), 'hex')
   )
   returning * into new_mark;
 
