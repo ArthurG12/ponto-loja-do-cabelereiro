@@ -65,6 +65,21 @@ A porta não deve ser publicada na Internet. Use rede privada e TLS/mTLS na fron
 - A API Node cliente ainda exige integração/testes ponta a ponta com este serviço; a rota pública de AFD permanece bloqueada até revisão independente do resultado e da cadeia completa.
 - A conformidade REP-P depende também da validação do AFD v004, hash tipo 7, demais documentos e requisitos operacionais; assinatura correta isoladamente não torna o sistema REP-P pronto.
 
+## Container privado
+
+A imagem é multi-stage, inclui as dependências no JAR sombreado e executa como usuário não-root (UID 10001). A porta 8787 é apenas exposta como metadado Docker; o Dockerfile não publica a porta no host.
+
+~~~sh
+docker build -f signer-java/Dockerfile -t rep-p-cades-signer:local .
+docker network create rep-p-private
+~~~
+
+Execute o container na mesma rede bridge privada do backend, monte os arquivos de confiança e PKCS#12 como volume somente leitura e injete as variáveis por um secret manager/arquivo de ambiente fora do repositório. Dentro do container, os caminhos configurados devem apontar para os arquivos montados. **Não use `-p 8787:8787` nem publique a porta em proxy público.** A rede precisa permitir saída controlada aos respondedores OCSP/LCR oficiais; bloqueie entrada externa e limite egress conforme a infraestrutura ICP-Brasil.
+
+O serviço escuta em `0.0.0.0` dentro do container para aceitar conexões do backend na rede Docker privada. Fora de container, o padrão continua sendo `127.0.0.1`. A fronteira entre backend e assinador deve usar TLS/mTLS e regras de rede, mesmo que ambos estejam na mesma rede privada.
+
+O CI verifica o CMS detached gerado por uma segunda implementação (OpenSSL), confere a presença de Bouncy Castle/Jackson no JAR sombreado e constrói a imagem Docker. Isso verifica a matemática CMS e o empacotamento; não substitui a validação oficial da cadeia, da LPA/PA, do certificado ICP-Brasil real nem uma revisão independente de conformidade.
+
 ## Execução local de desenvolvimento
 
 Requer JDK 21 e Maven 3.9+.
