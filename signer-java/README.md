@@ -42,6 +42,9 @@ Os arquivos devem ser montados por secret manager/volume protegido, fora do Git 
 
 Não adicione certificados, chaves, senhas, hashes de produção não conferidos ou dados pessoais ao repositório. A âncora de confiança e os pins devem ser aprovados por procedimento independente, não copiados cegamente da própria LPA.
 
+Para conferir o pin do bundle de âncoras, calcule o SHA-256 dos bytes exatos do arquivo provisionado (por exemplo, sha256sum trust-anchors.pem). Os hashes da LPA DER e do arquivo .p7s devem ser confrontados com os sidecars oficiais do ITI e aprovados por canal independente. Já REP_CADES_POLICY_ATTRIBUTE_SHA256 **não** é o SHA-256 do arquivo DER inteiro: é o hash interno SignPolicyHash extraído da própria PA, que o serviço compara com o atributo sigPolicyId. Não use um valor inferido ou copiado sem validar a estrutura ASN.1 da PA.
+
+
 ## Endpoints
 
 - GET /healthz: processo vivo.
