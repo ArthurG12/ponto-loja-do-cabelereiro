@@ -25,15 +25,12 @@ function numericField(value, width, label, { required = false, pad = '0' } = {})
   return pad === ' ' ? valueText.padEnd(width, ' ') : valueText.padStart(width, '0');
 }
 
-).test(digits), `${label} deve conter exatamente ${expected} dígitos.`);
-  return digits.padStart(14, '0');
 }
 
 function employerIdentifier(value, type, label) {
   const digits = String(value ?? '');
   const expected = type === '1' ? 14 : 11;
   assert(digits.length === expected && [...digits].every((digit) => digit >= '0' && digit <= '9'), `${label} deve conter exatamente ${expected} dígitos.`);
-  return digits.padStart(14, '0');
 }
 
 function nsrField(value) {
