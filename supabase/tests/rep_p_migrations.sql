@@ -14,6 +14,19 @@ declare
   ledger_count integer;
   event_result jsonb;
 begin
+  if public.rep_afd_v004_mark_hash(
+    1,
+    '2026-01-02T13:03:42.000Z'::timestamptz,
+    '52998224725',
+    '2026-01-02T13:03:59.000Z'::timestamptz,
+    '02',
+    false,
+    null,
+    'America/Sao_Paulo'
+  ) <> 'ae9d6fb9ce501d6ab4626c7df591de4682880817b1cdde141b9c1ab1e5de5c4d' then
+    raise exception 'Vetor SHA-256 SQL diverge do vetor independente Node/AFD v004.';
+  end if;
+
   insert into auth.users (id) values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
   if not exists (
     select 1 from public.profiles
