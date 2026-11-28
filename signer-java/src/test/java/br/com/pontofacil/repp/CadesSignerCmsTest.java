@@ -125,6 +125,8 @@ class CadesSignerCmsTest {
         KeyPairGenerator rsa2048 = KeyPairGenerator.getInstance("RSA");
         rsa2048.initialize(2048);
         assertEquals("SHA256withRSA", CadesSigner.signatureAlgorithmFor(rsa2048.generateKeyPair().getPrivate()));
+        assertEquals("SHA512withRSA", CadesSigner.signatureAlgorithmFor(
+                rsa2048.generateKeyPair().getPrivate(), "SHA512"));
 
         KeyPairGenerator rsa1024 = KeyPairGenerator.getInstance("RSA");
         rsa1024.initialize(1024);
@@ -134,6 +136,10 @@ class CadesSignerCmsTest {
         KeyPairGenerator ec = KeyPairGenerator.getInstance("EC");
         ec.initialize(256);
         assertEquals("SHA256withECDSA", CadesSigner.signatureAlgorithmFor(ec.generateKeyPair().getPrivate()));
+        assertEquals("SHA512withECDSA", CadesSigner.signatureAlgorithmFor(
+                ec.generateKeyPair().getPrivate(), "SHA512"));
+        assertThrows(SecurityException.class, () -> CadesSigner.signatureAlgorithmFor(
+                ec.generateKeyPair().getPrivate(), "SHA384"));
 
         KeyPairGenerator ed25519 = KeyPairGenerator.getInstance("Ed25519");
         assertThrows(SecurityException.class,
