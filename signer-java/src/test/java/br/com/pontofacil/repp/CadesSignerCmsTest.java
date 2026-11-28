@@ -184,4 +184,47 @@ class CadesSignerCmsTest {
         assertEquals("1.2.840.10045.4.3.2", signerInfo.getEncryptionAlgOID());
     }
 
+    @Test void createsDetachedCmsWithRsaSha512() throws Exception {
+        if (Security.getProvider("BC") == null) Security.addProvider(new BouncyCastleProvider());
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+        generator.initialize(2048);
+        KeyPair pair = generator.generateKeyPair();
+        Instant now = Instant.now();
+        X500Name subject = new X500Name("C=BR,O=Teste,CN=Desenvolvedor CPF 12345678901");
+        var holder = new JcaX509v3CertificateBuilder(subject, BigInteger.valueOf(1004),
+                Date.from(now.minusSeconds(60)), Date.from(now.plusSeconds(3600)),
+                subject, pair.getPublic()).build(new JcaContentSignerBuilder("SHA512withRSA")
+                .setProvider("BC").build(pair.getPrivate()));
+        X509Certificate certificate = new JcaX509CertificateConverter()
+                .setProvider("BC").getCertificate(holder);
+        String algorithm = CadesSigner.signatureAlgorithmFor(pair.getPrivate(), "SHA512");
+        assertEquals("SHA512withRSA", algorithm);
+        assertDoesNotThrow(() -> CadesSigner.verifyKeyPair(pair.getPrivate(), certificate, algorithm));
+
+        byte[] policyHash = MessageDigest.getInstance("SHA-256")
+                .digest("policy".getBytes(StandardCharsets.UTF_8));
+        CadesSigner.Policy policy = new CadesSigner.Policy("2.16.76.1.7.1.1.2.4", "2.4",
+                now.minusSeconds(60), now.plusSeconds(3600), now.plusSeconds(7200),
+                null, policyHash, "e".repeat(64));
+        CadesSigner signer = new CadesSigner(pair.getPrivate(), certificate, List.of(certificate),
+                Set.of(), algorithm, policy, HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                        .digest(certificate.getEncoded())), "12345678901", "production", "2.4",
+                new byte[0], new byte[0]);
+        byte[] content = "AFD RSA SHA-512 fixture\\r\\n".getBytes(StandardCharsets.ISO_8859_1);
+        String requestDigest = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
+        Map<String, Object> result = signer.signInternal(
+                "123e4567-e89b-12d3-a456-426614174003", content, requestDigest);
+        byte[] detached = Base64.getDecoder().decode((String) result.get("signature"));
+        CMSSignedData cms = new CMSSignedData(new CMSProcessableByteArray(content), detached);
+        SignerInformation signerInfo = cms.getSignerInfos().getSigners().iterator().next();
+        assertTrue(signerInfo.verify(new JcaSimpleSignerInfoVerifierBuilder()
+                .setProvider("BC").build(certificate)));
+        assertEquals("2.16.840.1.101.3.4.2.3", signerInfo.getDigestAlgOID());
+        assertEquals("1.2.840.113549.1.1.13", signerInfo.getEncryptionAlgOID());
+        byte[] cmsMessageDigest = org.bouncycastle.asn1.ASN1OctetString.getInstance(
+                signerInfo.getSignedAttributes().get(CMSAttributes.messageDigest)
+                        .getAttrValues().getObjectAt(0)).getOctets();
+        assertArrayEquals(MessageDigest.getInstance("SHA-512").digest(content), cmsMessageDigest);
+    }
+
 }
