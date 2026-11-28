@@ -3,7 +3,8 @@
 
 do $$
 declare
-  employee_uuid uuid;\n  deleted_employee_uuid uuid;
+  employee_uuid uuid;
+  deleted_employee_uuid uuid;
   establishment_uuid uuid;
   result jsonb;
   first_mark jsonb;
