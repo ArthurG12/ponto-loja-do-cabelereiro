@@ -51,7 +51,7 @@ Para baixar os três artefatos e conferir os sidecars publicados, execute em uma
 bash signer-java/scripts/fetch-iti-cades-artifacts.sh /secure/rep-p/iti-cades
 ```
 
-O script baixa `LPA_CAdES.der`, `LPA_CAdES.p7s` e `PA_AD_RB_v2_4.der`, além dos sidecars. Ele apenas compara os arquivos com os hashes publicados pelo próprio ITI; **isso não substitui** a validação da assinatura CMS da LPA contra as raízes ICP-Brasil pinadas independentemente, nem valida por si só a cadeia/revogação. Confira a URI e o hash da PA na LPA assinada e só então preencha as variáveis de ambiente. Não copie os artefatos para o Git.
+O script baixa `LPA_CAdES.der`, `LPA_CAdES.p7s` e `PA_AD_RB_v2_4.der`, além dos sidecars. Ele recusa destinos dentro do worktree Git para reduzir o risco de versionar artefatos oficiais por engano. Ele apenas compara os arquivos com os hashes publicados pelo próprio ITI; **isso não substitui** a validação da assinatura CMS da LPA contra as raízes ICP-Brasil pinadas independentemente, nem valida por si só a cadeia/revogação. Confira a URI e o hash da PA na LPA assinada e só então preencha as variáveis de ambiente. Não copie os artefatos para o Git.
 
 Fontes oficiais: [lista da LPA CAdES](https://www.gov.br/iti/pt-br/assuntos/repositorio/lista-de-politicas-de-assinatura), [IN ITI nº 33/2025 — inclusão da PA CAdES 2.4](https://repositorio.iti.gov.br/instrucoes-normativas/IN2025_33_DOC_ICP_15.03.htm) e [tabela pública de políticas AD-RB](https://www.gov.br/iti/pt-br/assuntos/repositorio/assinatura-digital-com-referencia-basica-ad-rb), cuja listagem CAdES deve ser reconciliada com a IN antes de confiar no caminho direto do DER.
 
