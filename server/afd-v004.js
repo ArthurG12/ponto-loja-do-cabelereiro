@@ -16,7 +16,7 @@ function textField(value, width, label, { required = false } = {}) {
   return valueText.padEnd(width, ' ');
 }
 
-function numericField(value, width, label, { required = false, pad = '0' } = {}) {
+function numericField(value, width, label, { required = false, pad = ' ' } = {}) {
   const valueText = value == null ? '' : String(value);
   assert(!required || valueText.length > 0, `${label} obrigatório no AFD.`);
   assert(/^\d*$/.test(valueText), `${label} deve conter apenas dígitos.`);
@@ -102,7 +102,7 @@ function serializeRecord(record, timezone) {
   assert(RECORD_TYPES.has(type), `Tipo AFD não suportado: ${type}.`);
 
   if (type === '2') {
-    const responsible = numericField(payload.responsible_cpf, 14, 'CPF do responsável', { required: true });
+    const responsible = numericField(payload.responsible_cpf, 14, 'CPF do responsável', { required: true, pad: '0' });
     const employerType = String(payload.employer_id_type || '');
     assert(['1', '2'].includes(employerType), 'Tipo de empregador ausente no registro AFD tipo 2.');
     const prefix = nsr + '2' + dh(payload.recorded_at, timezone) + responsible + employerType
