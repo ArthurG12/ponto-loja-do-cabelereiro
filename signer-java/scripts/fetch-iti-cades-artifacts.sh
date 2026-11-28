@@ -13,6 +13,14 @@ fi
 BASE_URL="https://politicas.icpbrasil.gov.br"
 mkdir -p "$DESTINATION"
 DESTINATION="$(cd "$DESTINATION" && pwd)"
+REPOSITORY_ROOT="$(git -C "$(dirname "$0")/../.." rev-parse --show-toplevel)"
+case "$DESTINATION/" in
+  "$REPOSITORY_ROOT/"*)
+    echo "Refusing to write ICP-Brasil artifacts inside the Git worktree: $DESTINATION" >&2
+    echo "Choose a protected external directory (for example /secure/rep-p/iti-cades)." >&2
+    exit 1
+    ;;
+esac
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
