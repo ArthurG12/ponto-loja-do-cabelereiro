@@ -21,7 +21,7 @@ Fontes:
 - [RFC 8419 — EdDSA em CMS](https://www.rfc-editor.org/rfc/rfc8419)
 - [DOC-ICP-15.03 v9.1, Anexo 2 — AD-RB CAdES](https://www.gov.br/iti/pt-br/assuntos/legislacao/documentos-principais/v9.1_IN2021_03_DOCICP15.03_compilada.pdf)
 - [LPA CAdES e situação das políticas](https://www.gov.br/iti/pt-br/assuntos/repositorio/lista-de-politicas-de-assinatura)
-- [Políticas AD-RB do ITI — tabela CAdES inclui a PA 2.4 e seu DER](https://www.gov.br/iti/pt-br/assuntos/repositorio/assinatura-digital-com-referencia-basica-ad-rb)
+- [Políticas AD-RB do ITI — a tabela pública consultada ainda exibe CAdES até 2.3; reconciliar com a IN nº 33/2025](https://www.gov.br/iti/pt-br/assuntos/repositorio/assinatura-digital-com-referencia-basica-ad-rb)
 - [Repositório de certificados ICP-Brasil](https://www.gov.br/iti/pt-br/assuntos/repositorio/certificados-das-acs-da-icp-brasil-arquivo-unico-compactado)
 
 ## Implementação atual
@@ -50,7 +50,7 @@ Fontes:
 
 ### Provisionamento externo
 
-A PA AD-RB CAdES 2.4 é publicada pelo ITI como `PA_AD_RB_v2_4.der`; o OID correspondente é `2.16.76.1.7.1.1.2.4`. A página de políticas AD-RB separa as tabelas CAdES, XAdES e PAdES. A página da LPA lista a LPA CAdES vigente e seus arquivos DER/PKCS#7, mas não substitui a consulta da tabela AD-RB para localizar a PA CAdES específica.
+A IN ITI nº 33/2025 introduz a PA AD-RB CAdES 2.4, OID `2.16.76.1.7.1.1.2.4`. Há uma inconsistência de publicação a resolver: na consulta de 28/11/2026, a tabela pública AD-RB do ITI ainda listava CAdES somente até 2.3, embora a IN já estabeleça a 2.4. O script tenta obter `PA_AD_RB_v2_4.der` e o sidecar pelo caminho direto do repositório; esse caminho precisa ser confirmado por download, conferência do sidecar e comparação com a entrada da LPA assinada. Se o endpoint ou sidecar não corresponder à PA 2.4, não provisionar nem preencher os pins. A página da LPA lista a LPA CAdES vigente e seus arquivos DER/PKCS#7, mas não substitui a verificação da PA específica.
 
 O repositório contém `signer-java/scripts/fetch-iti-cades-artifacts.sh`, que baixa a LPA CAdES DER, sua assinatura `.p7s`, a PA AD-RB CAdES 2.4 DER e os respectivos sidecars SHA-256 para um diretório externo. O script confere os hashes publicados pelo ITI, mas esses sidecars não são âncora de confiança. A validação CMS da LPA e da cadeia até raízes ICP-Brasil v5/v12 pinadas continua obrigatória no Java. A URI e o hash integral da PA devem ser lidos da LPA assinada; não devem ser presumidos a partir do nome do arquivo.
 
