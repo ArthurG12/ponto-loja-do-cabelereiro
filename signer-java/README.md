@@ -43,7 +43,7 @@ Os arquivos devem ser montados por secret manager/volume protegido, fora do Git 
 
 ### Obtenção dos artefatos oficiais
 
-A política CAdES AD-RB 2.4 existe e está listada pelo ITI com OID `2.16.76.1.7.1.1.2.4`; não confundir com a tabela separada de versões XAdES. A página AD-RB do ITI publica o arquivo DER `PA_AD_RB_v2_4.der` e seu sidecar SHA-256. A LPA CAdES vigente, sua assinatura detached e os sidecars estão na página oficial de LPA.
+A política CAdES AD-RB 2.4 foi introduzida pela IN ITI nº 33/2025, com OID `2.16.76.1.7.1.1.2.4`; não confundir com políticas XAdES. Atenção: na consulta de 28/11/2026, a tabela pública AD-RB do ITI ainda exibia CAdES somente até a versão 2.3, embora a IN nº 33/2025 já estabeleça a 2.4. O caminho direto `PA_AD_RB_v2_4.der` usado pelo script deve, portanto, ser confirmado por download e validação do sidecar antes do provisionamento. A LPA CAdES vigente, sua assinatura detached e os sidecars estão na página oficial de LPA.
 
 Para baixar os três artefatos e conferir os sidecars publicados, execute em uma máquina de provisionamento confiável:
 
@@ -53,7 +53,7 @@ bash signer-java/scripts/fetch-iti-cades-artifacts.sh /secure/rep-p/iti-cades
 
 O script baixa `LPA_CAdES.der`, `LPA_CAdES.p7s` e `PA_AD_RB_v2_4.der`, além dos sidecars. Ele apenas compara os arquivos com os hashes publicados pelo próprio ITI; **isso não substitui** a validação da assinatura CMS da LPA contra as raízes ICP-Brasil pinadas independentemente, nem valida por si só a cadeia/revogação. Confira a URI e o hash da PA na LPA assinada e só então preencha as variáveis de ambiente. Não copie os artefatos para o Git.
 
-Fontes oficiais: [lista de políticas/LPA CAdES](https://www.gov.br/iti/pt-br/assuntos/repositorio/lista-de-politicas-de-assinatura) e [políticas AD-RB, incluindo CAdES 2.4](https://www.gov.br/iti/pt-br/assuntos/repositorio/assinatura-digital-com-referencia-basica-ad-rb).
+Fontes oficiais: [lista da LPA CAdES](https://www.gov.br/iti/pt-br/assuntos/repositorio/lista-de-politicas-de-assinatura), [IN ITI nº 33/2025 — inclusão da PA CAdES 2.4](https://repositorio.iti.gov.br/instrucoes-normativas/IN2025_33_DOC_ICP_15.03.htm) e [tabela pública de políticas AD-RB](https://www.gov.br/iti/pt-br/assuntos/repositorio/assinatura-digital-com-referencia-basica-ad-rb), cuja listagem CAdES deve ser reconciliada com a IN antes de confiar no caminho direto do DER.
 
 Não adicione certificados, chaves, senhas, hashes de produção não conferidos ou dados pessoais ao repositório. Para a PA CAdES AD-RB 2.4, o bundle deve conter exatamente as raízes ICP-Brasil v5 e v12 indicadas no DOC-ICP-15.03 v9.1, obtidas do repositório oficial e aprovadas por fingerprint SHA-256 independente. A âncora de confiança e os pins não podem ser copiados cegamente da própria LPA.
 
