@@ -19,9 +19,9 @@ O serviço Java 21 está implementado na pasta `signer-java/`, com geração CMS
 Fontes:
 - [IN ITI nº 33/2025 — alterações do DOC-ICP-15.03 e algoritmos da PA 2.4](https://repositorio.iti.gov.br/instrucoes-normativas/IN2025_33_DOC_ICP_15.03.htm)
 - [RFC 8419 — EdDSA em CMS](https://www.rfc-editor.org/rfc/rfc8419)
-- [DOC-ICP-15.03 v9.1, Anexo 2 — AD-RB CAdES](https://www.gov.br/iti/pt-br/assuntos/legislacao/documentos-principais/v9.1_IN2021_03_DOCICP15.03_compilada.pdf)
+- [DOC-ICP-15.03 v9.1 em HTML, Anexo 2, seção 1 — AD-RB CAdES 2.4](https://repositorio.iti.gov.br/instrucoes-normativas/IN2021_03_DOC-ICP-15.03.htm)
 - [LPA CAdES e situação das políticas](https://www.gov.br/iti/pt-br/assuntos/repositorio/lista-de-politicas-de-assinatura)
-- [Políticas AD-RB do ITI — a tabela pública consultada ainda exibe CAdES até 2.3; reconciliar com a IN nº 33/2025](https://www.gov.br/iti/pt-br/assuntos/repositorio/assinatura-digital-com-referencia-basica-ad-rb)
+- [DER da PA CAdES AD-RB 2.4](https://politicas.icpbrasil.gov.br/PA_AD_RB_v2_4.der) · [sidecar SHA-256 oficial](https://politicas.icpbrasil.gov.br/PA_AD_RB_v2_4der-sha256.txt) · [tabela pública AD-RB](https://www.gov.br/iti/pt-br/assuntos/repositorio/assinatura-digital-com-referencia-basica-ad-rb)
 - [Repositório de certificados ICP-Brasil](https://www.gov.br/iti/pt-br/assuntos/repositorio/certificados-das-acs-da-icp-brasil-arquivo-unico-compactado)
 
 ## Implementação atual
