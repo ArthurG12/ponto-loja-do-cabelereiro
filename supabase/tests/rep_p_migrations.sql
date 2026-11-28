@@ -14,6 +14,12 @@ declare
   ledger_count integer;
   event_result jsonb;
 begin
+  if has_table_privilege('service_role', 'public.rep_ledger', 'INSERT')
+     or has_table_privilege('service_role', 'public.rep_ledger', 'UPDATE')
+     or has_table_privilege('service_role', 'public.rep_ledger', 'DELETE') then
+    raise exception 'service_role não pode gravar diretamente no ledger REP-P.';
+  end if;
+
   if has_function_privilege('service_role', 'public.append_rep_afd_event(uuid,text,jsonb,timestamptz,uuid)', 'EXECUTE') then
     raise exception 'service_role não pode inserir eventos AFD arbitrários.';
   end if;
