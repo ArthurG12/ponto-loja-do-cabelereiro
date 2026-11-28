@@ -11,7 +11,7 @@ const timezone = 'America/Sao_Paulo';
 const header = {
   employer_id_type: '1',
   employer_document: '12345678000195',
-  cno_caepf: null,
+  cno_caepf: '123456789012',
   legal_name: 'Loja Teste Ltda',
   inpi_registration: '51202600000000123',
   start_date: '2026-11-01',
@@ -54,7 +54,7 @@ test('gera AFD 004 com tipos 2, 4, 5, 6 e 7, CRLF, trailer e marcador', () => {
     { nsr: 4, record_type: '6', occurred_at: '2026-11-27T15:00:00.000Z', record_payload: { event_code: '07', recorded_at: '2026-11-27T15:00:00.000Z' } },
     { nsr: 3, record_type: '5', occurred_at: '2026-11-27T14:00:00.000Z', record_payload: { operation: 'I', recorded_at: '2026-11-27T14:00:00.000Z', cpf: '52998224725', full_name: 'Funcionário Teste', responsible_cpf: '52998224725' } },
     { nsr: 2, record_type: '4', occurred_at: '2026-11-27T13:00:00.000Z', record_payload: { before_at: '2026-11-27T12:59:00.000Z', adjusted_at: '2026-11-27T13:00:00.000Z', responsible_cpf: '52998224725' } },
-    { nsr: 1, record_type: '2', occurred_at: '2026-11-27T12:00:00.000Z', record_payload: { recorded_at: '2026-11-27T12:00:00.000Z', responsible_cpf: '52998224725', employer_id_type: '1', employer_document: '12345678000195', legal_name: 'Loja Teste Ltda', service_location: 'Belo Horizonte - MG' } },
+    { nsr: 1, record_type: '2', occurred_at: '2026-11-27T12:00:00.000Z', record_payload: { recorded_at: '2026-11-27T12:00:00.000Z', responsible_cpf: '52998224725', employer_id_type: '1', employer_document: '12345678000195', cno_caepf: '123456789012', legal_name: 'Loja Teste Ltda', service_location: 'Belo Horizonte - MG' } },
     mark,
   ];
   const output = buildAfdV004({ header, records });
@@ -63,6 +63,10 @@ test('gera AFD 004 com tipos 2, 4, 5, 6 e 7, CRLF, trailer e marcador', () => {
   assert.equal(result.records, 5);
   const lines = output.toString('latin1').split('\r\n');
   if (lines.at(-1) === '') lines.pop();
+  assert.equal(lines[0].slice(25, 39), '123456789012  ');
+  assert.equal(lines[0].slice(189, 206), '51202600000000123');
+  assert.equal(lines[1].slice(34, 48), '00052998224725');
+  assert.equal(lines[1].slice(63, 77), '123456789012  ');
   assert.equal(lines[0].slice(250, 253), '004');
   assert.equal(lines[0].slice(-4), crc16Kermit(lines[0].slice(0, -4)));
   assert.equal(lines[1].slice(0, 9), '000000001');
