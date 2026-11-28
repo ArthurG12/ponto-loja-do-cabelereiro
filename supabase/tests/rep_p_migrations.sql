@@ -14,6 +14,10 @@ declare
   ledger_count integer;
   event_result jsonb;
 begin
+  if has_function_privilege('service_role', 'public.allocate_rep_nsr(uuid)', 'EXECUTE') then
+    raise exception 'service_role não pode alocar NSR isoladamente; a função deve ser somente interna.';
+  end if;
+
   if public.rep_afd_v004_mark_hash(
     1,
     '2026-01-02T13:03:42.000Z'::timestamptz,
