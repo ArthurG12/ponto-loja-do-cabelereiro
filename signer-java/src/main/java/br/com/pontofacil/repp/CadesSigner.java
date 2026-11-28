@@ -207,6 +207,10 @@ final class CadesSigner implements CadesSigningService {
     }
 
 
+    static String signatureAlgorithmFor(PrivateKey key) {
+        return signatureAlgorithmFor(key, "SHA256");
+    }
+
     static String signatureAlgorithmFor(PrivateKey key, String requestedDigest) {
         String digest = requestedDigest == null ? "SHA256" : requestedDigest.trim().toUpperCase(Locale.ROOT);
         if (!Set.of("SHA256", "SHA512").contains(digest)) {
