@@ -14,6 +14,10 @@ declare
   ledger_count integer;
   event_result jsonb;
 begin
+  if has_function_privilege('service_role', 'public.append_rep_afd_event(uuid,text,jsonb,timestamptz,uuid)', 'EXECUTE') then
+    raise exception 'service_role não pode inserir eventos AFD arbitrários.';
+  end if;
+
   if has_function_privilege('service_role', 'public.allocate_rep_nsr(uuid)', 'EXECUTE') then
     raise exception 'service_role não pode alocar NSR isoladamente; a função deve ser somente interna.';
   end if;
