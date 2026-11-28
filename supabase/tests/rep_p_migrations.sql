@@ -1,5 +1,5 @@
 -- Teste de integração das migrations REP-P em PostgreSQL limpo.
--- Executado pelo GitHub Actions após schema.sql e migrations 001–018.
+-- Executado pelo GitHub Actions após schema.sql e migrations 001–019.
 
 do $$
 declare
