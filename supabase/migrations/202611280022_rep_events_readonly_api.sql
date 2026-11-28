@@ -2,9 +2,12 @@
 -- Os fluxos legítimos escrevem por funções SECURITY DEFINER/triggers na mesma transação.
 begin;
 
+revoke insert, update, delete on table public.rep_events
+  from anon, authenticated;
+
 revoke insert, update, delete on table public.rep_events, public.time_marks,
   public.rep_sequences, public.establishments, public.employees
-  from anon, authenticated, service_role;
+  from service_role;
 
 grant select on table public.rep_events to service_role;
 
