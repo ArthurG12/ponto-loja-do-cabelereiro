@@ -173,7 +173,8 @@ final class CadesSigner implements CadesSigningService {
         String subjectDigits = digits(leaf.getSubjectX500Principal().getName());
         if (!subjectDigits.contains(cpf)) throw new SecurityException("Developer CPF does not match signing certificate subject");
         validatePath(leaf, chain, anchors);
-        String algorithm = signatureAlgorithmFor(key);
+        String requestedAlgorithm = e.getOrDefault("REP_CADES_SIGNATURE_ALGORITHM", "SHA256");
+        String algorithm = signatureAlgorithmFor(key, requestedAlgorithm);
         verifyKeyPair(key, leaf, algorithm);
         return new CadesSigner(key, leaf, chain, anchors, algorithm, policy,
                 actualFingerprint, cpf, environment, policyVersion, lpa, lpaSignature);
@@ -206,20 +207,33 @@ final class CadesSigner implements CadesSigningService {
     }
 
 
-    static String signatureAlgorithmFor(PrivateKey key) {
+    static String signatureAlgorithmFor(PrivateKey key, String requestedDigest) {
+        String digest = requestedDigest == null ? "SHA256" : requestedDigest.trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("SHA256", "SHA512").contains(digest)) {
+            throw new SecurityException("Unsupported CAdES AD-RB 2.4 digest; configure SHA256 or SHA512");
+        }
         if (key instanceof RSAKey rsa) {
             if (rsa.getModulus().bitLength() < 2048) {
                 throw new SecurityException("ICP-Brasil CAdES AD-RB 2.4 requires RSA keys of at least 2048 bits");
             }
-            return "SHA256withRSA";
+            return digest + "withRSA";
         }
         if (key instanceof ECKey ec) {
             if (ec.getParams() == null || ec.getParams().getCurve().getField().getFieldSize() < 256) {
                 throw new SecurityException("ICP-Brasil CAdES AD-RB 2.4 requires ECDSA keys of at least 256 bits");
             }
-            return "SHA256withECDSA";
+            return digest + "withECDSA";
         }
         throw new SecurityException("Unsupported CAdES AD-RB 2.4 key algorithm; RSA and ECDSA are supported");
+    }
+
+    private String contentDigestName() {
+        return signatureAlgorithm.startsWith("SHA512") ? "SHA-512" : "SHA-256";
+    }
+
+    private ASN1ObjectIdentifier contentDigestOid() {
+        return signatureAlgorithm.startsWith("SHA512")
+                ? NISTObjectIdentifiers.id_sha512 : NISTObjectIdentifiers.id_sha256;
     }
 
     static void verifyKeyPair(PrivateKey privateKey, X509Certificate certificate, String algorithm) throws Exception {
@@ -274,7 +288,7 @@ final class CadesSigner implements CadesSigningService {
         var digestProvider = new JcaDigestCalculatorProviderBuilder().setProvider("BC").build();
         ContentSigner contentSigner = new JcaContentSignerBuilder(signatureAlgorithm).setProvider("BC").build(privateKey);
         SignerInfoGenerator signerInfo = new JcaSignerInfoGeneratorBuilder(digestProvider)
-                .setContentDigest(new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256))
+                .setContentDigest(new AlgorithmIdentifier(contentDigestOid()))
                 .setSignedAttributeGenerator(new DefaultSignedAttributeTableGenerator(signedAttributes))
                 .build(contentSigner, signerCertificate);
         CMSSignedDataGenerator generator = new CMSSignedDataGenerator();
@@ -321,7 +335,7 @@ final class CadesSigner implements CadesSigningService {
         Attribute sc = requireAttribute(table, SIGNING_CERT_V2);
         Attribute sp = requireAttribute(table, SIG_POLICY_ID);
         byte[] actualDigest = ASN1OctetString.getInstance(table.get(CMSAttributes.messageDigest).getAttrValues().getObjectAt(0)).getOctets();
-        if (!MessageDigest.isEqual(actualDigest, MessageDigest.getInstance("SHA-256").digest(content))) {
+        if (!MessageDigest.isEqual(actualDigest, MessageDigest.getInstance(contentDigestName()).digest(content))) {
             throw new SecurityException("CAdES messageDigest does not match content");
         }
         ASN1ObjectIdentifier contentType = ASN1ObjectIdentifier.getInstance(
