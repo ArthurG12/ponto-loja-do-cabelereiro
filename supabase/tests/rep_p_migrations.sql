@@ -170,7 +170,7 @@ begin
 
   -- Exclusão física de empregado sem marcações também precisa gerar tipo 5.
   insert into public.employees (full_name, schedule_code, active, pin_hash, cpf)
-  values ('Funcionário para exclusão', 'A', true, crypt('5678', gen_salt('bf')), '10000000184')
+  values ('Funcionário para exclusão', 'A', true, crypt('5678', gen_salt('bf')), '10000000019')
   returning id into deleted_employee_uuid;
 
   delete from public.employees where id = deleted_employee_uuid;
@@ -180,7 +180,7 @@ begin
     where establishment_id = establishment_uuid
       and nsr = 11 and record_type = '5'
       and record_payload->>'operation' = 'E'
-      and record_payload->>'cpf' = '10000000184'
+      and record_payload->>'cpf' = '10000000019'
       and record_payload->>'responsible_cpf' = '52998224725'
   ) then
     raise exception 'Exclusão física de empregado não gerou AFD tipo 5.';
