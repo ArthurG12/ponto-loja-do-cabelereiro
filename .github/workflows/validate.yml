@@ -1,0 +1,108 @@
+name: Validate application
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, feat/rep-p-arp]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Check backend JavaScript syntax
+        run: |
+          node --check server/index.js
+          node --check server/rep-p.js
+          node --check server/afd-v004.js
+          node --check server/afd-v004.test.js
+          node --check server/cades-signer-client.js
+          node --check server/cades-signer-client.test.js
+          node --check server/rep-p-server.js
+          node --check scripts/dev.mjs
+      - name: Test isolated REP-P HTTP API
+        run: npm run test:rep-p && npm run test:afd && npm run test:cades
+      - name: Build frontend
+        run: npm run build
+
+  postgres-migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ponto_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ponto_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Prepare minimal Supabase auth schema
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d ponto_test -v ON_ERROR_STOP=1 <<'SQL'
+          create role anon nologin;
+          create role authenticated nologin;
+          create role service_role nologin bypassrls;
+          create schema auth;
+          create table auth.users (id uuid primary key);
+          create or replace function auth.uid()
+          returns uuid language sql stable
+          as 'select nullif(current_setting(''request.jwt.claim.sub'', true), '''')::uuid';
+          SQL
+      - name: Apply base schema and REP-P migrations
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d ponto_test -v ON_ERROR_STOP=1 -f supabase/schema.sql
+          for migration in supabase/migrations/202611260001_rep_p_arp.sql supabase/migrations/202611260002_register_time_mark.sql supabase/migrations/202611260003_assign_employee_establishment.sql supabase/migrations/202611260004_read_employee_time_marks.sql supabase/migrations/202611260005_restrict_internal_function_execution.sql supabase/migrations/202611260006_fix_legacy_function_search_path.sql supabase/migrations/202611260007_disable_first_user_admin.sql supabase/migrations/202611270008_rep_afd_ledger.sql supabase/migrations/202611270009_rep_mark_snapshots.sql supabase/migrations/202611270010_rep_afd_v004_hash.sql supabase/migrations/202611270011_backend_only_legacy_rpcs.sql supabase/migrations/202611270012_employee_afd_events.sql supabase/migrations/202611270013_employer_afd_type2.sql supabase/migrations/202611270014_afd_clock_adjustments.sql supabase/migrations/202611270015_rep_service_availability_events.sql supabase/migrations/202611270016_fix_afd_dh_seconds.sql supabase/migrations/202611270017_employee_afd_responsible_cpf.sql supabase/migrations/202611280018_employee_delete_afd_event.sql supabase/migrations/202611280019_restrict_nsr_allocator.sql supabase/migrations/202611280020_restrict_afd_event_writer.sql supabase/migrations/202611280021_rep_ledger_readonly_api.sql supabase/migrations/202611280022_rep_events_readonly_api.sql supabase/migrations/202611280023_admin_save_employee_cpf.sql; do
+            psql -h localhost -U postgres -d ponto_test -v ON_ERROR_STOP=1 -f "$migration"
+          done
+          psql -h localhost -U postgres -d ponto_test -v ON_ERROR_STOP=1 -f supabase/tests/rep_p_migrations.sql
+
+  signer-java:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: signer-java/pom.xml
+      - name: Validate ITI artifact provisioning script syntax
+        run: bash -n signer-java/scripts/fetch-iti-cades-artifacts.sh
+      - name: Verify independent OpenSSL support
+        run: openssl version
+      - name: Test CAdES signer with Java and OpenSSL
+        working-directory: signer-java
+        run: mvn --batch-mode -Drep.cades.opensslTest=true test package
+      - name: Verify shaded JAR contains runtime dependencies
+        working-directory: signer-java
+        run: |
+          jar tf target/rep-p-cades-signer-0.1.0-SNAPSHOT.jar | grep -q 'org/bouncycastle/jce/provider/BouncyCastleProvider.class'
+          jar tf target/rep-p-cades-signer-0.1.0-SNAPSHOT.jar | grep -q 'com/fasterxml/jackson/databind/ObjectMapper.class'
+      - name: Build private non-root signer image
+        run: docker build --file signer-java/Dockerfile --tag rep-p-cades-signer:ci .

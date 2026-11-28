@@ -99,14 +99,15 @@ export default function Admin({ onClose, onNotice }) {
   }, { overtime: 0, lateDays: 0, incomplete: 0, missing: 0, balance: 0 });
 
   function exportPunches() {
-    const rows = [['Colaboradora', 'Data', 'Horário', 'Marcação', 'Origem']];
+    const rows = [['Colaboradora', 'Data', 'Horário', 'Marcação', 'Origem', 'NSR']];
     punches.filter((punch) => !punch.voided_at && (filterPerson === 'all' || punch.employee_id === filterPerson))
       .forEach((punch) => rows.push([
         staff.find((person) => person.id === punch.employee_id)?.full_name || 'Colaboradora',
         fmtDate(new Date(punch.recorded_at)),
         fmtTime(new Date(punch.recorded_at)),
         PUNCH_LABELS[punch.punch_type] || punch.punch_type,
-        punch.source === 'ajuste' ? 'Ajuste' : 'Tablet',
+        punch.source === 'ajuste' ? 'Ajuste' : punch.nsr ? 'REP-P' : 'Tablet',
+        punch.nsr || '',
       ]));
     downloadCsv(`ponto-batidas-${month}.csv`, rows);
   }
@@ -174,7 +175,7 @@ function TeamPanel({ staff, onSaved }) {
 
   function edit(person) {
     setError('');
-    setForm({ id: person.id, full_name: person.full_name, schedule_code: person.schedule_code || 'A', pin: '', active: person.active });
+    setForm({ id: person.id, full_name: person.full_name, schedule_code: person.schedule_code || 'A', cpf: person.cpf || '', pin: '', active: person.active });
   }
 
   async function save(event) {
@@ -194,9 +195,10 @@ function TeamPanel({ staff, onSaved }) {
   }
 
   return <section className="report-panel">
-    <div className="panel-head"><h3>Colaboradoras</h3><button className="primary" onClick={() => { setError(''); setForm({ id: null, full_name: '', schedule_code: 'A', pin: '', active: true }); }}><UserPlus size={16} /> Nova colaboradora</button></div>
+    <div className="panel-head"><h3>Colaboradoras</h3><button className="primary" onClick={() => { setError(''); setForm({ id: null, full_name: '', schedule_code: 'A', cpf: '', pin: '', active: true }); }}><UserPlus size={16} /> Nova colaboradora</button></div>
     {form && <form className="form-card" onSubmit={save}>
       <label>Nome<input value={form.full_name} onChange={(event) => setForm({ ...form, full_name: event.target.value })} required minLength={3} /></label>
+      <label>CPF<input inputMode="numeric" autoComplete="off" value={form.cpf || ''} onChange={(event) => setForm({ ...form, cpf: event.target.value.replace(/\D/g, '').slice(0, 11) })} placeholder="11 números" required maxLength={11} disabled={Boolean(form.id && form.cpf)} /></label>
       <div className="choice">{['A', 'B'].map((code) => <label key={code} className={form.schedule_code === code ? 'selected' : ''}><input type="radio" name="schedule" checked={form.schedule_code === code} onChange={() => setForm({ ...form, schedule_code: code })} /><strong>{SCHEDULE_INFO[code].label}</strong><span>{SCHEDULE_INFO[code].detail}</span></label>)}</div>
       <label>{form.id ? 'Nova senha' : 'Senha numérica'}<input inputMode="numeric" autoComplete="new-password" value={form.pin} onChange={(event) => setForm({ ...form, pin: event.target.value.replace(/\D/g, '').slice(0, 6) })} placeholder={form.id ? 'Em branco mantém a senha atual' : '4 a 6 números'} required={!form.id} /></label>
         {error && <p className="error">{error}</p>}
@@ -300,7 +302,7 @@ function AdjustPanel({ staff, justifications, onSaved }) {
     </section>
     <section className="report-panel">
       <h3>Corrigir marcação</h3>
-      <p className="muted">Use quando alguém esqueceu de bater o ponto ou o horário ficou errado. O motivo fica registrado.</p>
+      <p className="muted">Use para tratar registros legados. Marcações originais REP-P são imutáveis e não podem ser alteradas ou anuladas nesta tela.</p>
       <div className="form-card">
         <div className="two">
           <label>Colaboradora<select value={adjust.employee_id} onChange={(event) => setAdjust({ ...adjust, employee_id: event.target.value })}><option value="">Selecione</option>{staff.map((item) => <option key={item.id} value={item.id}>{item.full_name}</option>)}</select></label>
@@ -308,7 +310,7 @@ function AdjustPanel({ staff, justifications, onSaved }) {
         </div>
         <label>Motivo do ajuste<input value={adjust.reason} onChange={(event) => setAdjust({ ...adjust, reason: event.target.value })} placeholder="Ex.: esqueceu de bater a saída no movimento do fechamento" /></label>
         {error && <p className="error">{error}</p>}
-        <div className="stack">{dayPunches.map((punch) => <div className="person-row" key={punch.id}><div><strong>{PUNCH_LABELS[punch.punch_type]}</strong><span>{punch.source === 'ajuste' ? 'Incluída pelo administrador' : 'Batida no tablet'}</span></div><div className="row-actions"><input type="time" value={times[punch.id] || ''} onChange={(event) => setTimes({ ...times, [punch.id]: event.target.value })} /><button className="secondary" disabled={busy} onClick={() => run(() => api.adjustPunch({ action: 'retime', punch_id: punch.id, employee_id: adjust.employee_id, day: adjust.day, time: times[punch.id], reason: adjust.reason }))}>Salvar horário</button><button className="secondary danger" disabled={busy} onClick={() => run(() => api.adjustPunch({ action: 'void', punch_id: punch.id, reason: adjust.reason }))}>Anular</button></div></div>)}</div>
+        <div className="stack">{dayPunches.map((punch) => <div className="person-row" key={punch.id}><div><strong>{PUNCH_LABELS[punch.punch_type]}</strong><span>{punch.nsr ? `Registro original REP-P · NSR ${punch.nsr}` : punch.source === 'ajuste' ? 'Incluída pelo administrador' : 'Registro legado'}</span></div>{punch.nsr ? <span className="muted">Imutável — tratamento separado necessário</span> : <div className="row-actions"><input type="time" value={times[punch.id] || ''} onChange={(event) => setTimes({ ...times, [punch.id]: event.target.value })} /><button className="secondary" disabled={busy} onClick={() => run(() => api.adjustPunch({ action: 'retime', punch_id: punch.id, employee_id: adjust.employee_id, day: adjust.day, time: times[punch.id], reason: adjust.reason }))}>Salvar horário</button><button className="secondary danger" disabled={busy} onClick={() => run(() => api.adjustPunch({ action: 'void', punch_id: punch.id, reason: adjust.reason }))}>Anular</button></div>}</div>)}</div>
         {adjust.employee_id && available.length > 0 && <div className="add-punch"><label>Incluir marcação que faltou<select value={available.includes(adjust.punch_type) ? adjust.punch_type : available[0]} onChange={(event) => setAdjust({ ...adjust, punch_type: event.target.value })}>{available.map((type) => <option key={type} value={type}>{PUNCH_LABELS[type]}</option>)}</select></label><label>Horário de Brasília<input type="time" value={adjust.time} onChange={(event) => setAdjust({ ...adjust, time: event.target.value })} /></label><button className="primary" disabled={busy} onClick={() => run(() => api.adjustPunch({ action: 'insert', employee_id: adjust.employee_id, day: adjust.day, punch_type: available.includes(adjust.punch_type) ? adjust.punch_type : available[0], time: adjust.time, reason: adjust.reason }))}>Incluir</button></div>}
         {adjust.employee_id && !available.length && dayPunches.length > 0 && <p className="muted">As marcações deste dia já estão completas.</p>}
       </div>

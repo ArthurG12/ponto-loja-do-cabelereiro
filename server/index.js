@@ -1,10 +1,11 @@
 import { createServer } from 'node:http';
 import { store } from './db.js';
+import { listRepPunchesToday, registerRepPunch } from './rep-p.js';
 
-const PORT = 5176;
+const PORT = Number(process.env.PORT || 5176);
 
-function send(res, status, body, cookie) {
-  const headers = { 'content-type': 'application/json; charset=utf-8' };
+function send(res, status, body, cookie, extraHeaders = {}) {
+  const headers = { 'content-type': 'application/json; charset=utf-8', ...extraHeaders };
   if (cookie) headers['set-cookie'] = cookie;
   res.writeHead(status, headers);
   res.end(JSON.stringify(body));
@@ -72,6 +73,8 @@ const routes = {
   '/api/pin/verify': (body) => store.verifyPin(body.employeeId, body.pin),
   '/api/punches/today': (body) => store.todayPunches(body.employeeId, body.pin),
   '/api/punches/register': (body) => store.registerPunch(body.employeeId, body.pin, body.type, body.requestId),
+  '/api/rep-p/register': (body) => registerRepPunch(body),
+  '/api/rep-p/today': (body) => listRepPunchesToday(body),
   '/api/punches/between': (body, token) => (store.adminSession(token) ? store.punchesBetween(body.start, body.end) : { ok: false, error: 'Entre como administrador.', punches: [] }),
   '/api/justifications/between': (body, token) => (store.adminSession(token) ? store.justificationsBetween(body.start, body.end) : { ok: false, error: 'Entre como administrador.', justifications: [] }),
   '/api/employees/save': (body, token) => (store.adminSession(token) ? store.saveEmployee(body) : { ok: false, error: 'Entre como administrador.' }),
@@ -83,7 +86,28 @@ const routes = {
   '/api/import': (body) => store.importLegacy(body),
 };
 
+const allowedOrigin = process.env.REP_ALLOWED_ORIGIN || '';
 const server = createServer(async (req, res) => {
+  const origin = req.headers.origin || '';
+  const corsHeaders = origin && origin === allowedOrigin ? {
+    'access-control-allow-origin': origin,
+    'access-control-allow-methods': 'POST, OPTIONS',
+    'access-control-allow-headers': 'content-type',
+    'access-control-max-age': '600',
+    vary: 'Origin',
+  } : {};
+
+  if (['/api/rep-p/register', '/api/rep-p/today'].includes(req.url) && origin && origin !== allowedOrigin) {
+    send(res, 403, { ok: false, error: 'Origem não autorizada.' });
+    return;
+  }
+
+  if (req.method === 'OPTIONS' && ['/api/rep-p/register', '/api/rep-p/today'].includes(req.url) && corsHeaders['access-control-allow-origin']) {
+    res.writeHead(204, corsHeaders);
+    res.end();
+    return;
+  }
+
   if (req.method !== 'POST' || !routes[req.url]) {
     send(res, 404, { ok: false, error: 'Caminho não encontrado.' });
     return;
@@ -94,13 +118,14 @@ const server = createServer(async (req, res) => {
     const cookie = result.cookie;
     if (cookie) delete result.cookie;
     if (result.token) delete result.token;
-    send(res, 200, result, cookie);
+    send(res, 200, result, cookie, corsHeaders);
   } catch (error) {
-    send(res, 400, { ok: false, error: error?.message || 'Não foi possível gravar no banco.' });
+    send(res, 400, { ok: false, error: error?.message || 'Não foi possível gravar no banco.' }, null, corsHeaders);
   }
 });
 
-server.listen(PORT, '127.0.0.1', () => {
+const HOST = process.env.HOST || '127.0.0.1';
+server.listen(PORT, HOST, () => {
   console.log(`Banco SQLite em ${store.file}`);
-  console.log(`API em http://127.0.0.1:${PORT}`);
+  console.log(`API em http://${HOST}:${PORT}`);
 });

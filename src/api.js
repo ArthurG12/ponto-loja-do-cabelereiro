@@ -18,6 +18,7 @@ function configured(url, key) {
 }
 
 export const remote = configured(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
+const repApiUrl = (import.meta.env.VITE_REP_API_URL || '').replace(/\/+$/, '');
 export const supabase = remote ? createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY) : null;
 
 function messageFrom(error, fallback) {
@@ -27,7 +28,7 @@ function messageFrom(error, fallback) {
 }
 
 async function remoteStaff() {
-  const { data, error } = await supabase.from('employees').select('id,full_name,schedule_code,active,photo_url').order('full_name');
+  const { data, error } = await supabase.from('employees').select('id,full_name,schedule_code,active,photo_url,cpf').order('full_name');
   if (error) return { ok: false, error: messageFrom(error, 'Não foi possível carregar a equipe.'), employees: [] };
   return { ok: true, employees: data || [] };
 }
@@ -59,39 +60,94 @@ const remoteApi = {
     await supabase.auth.signOut();
   },
   async listActiveEmployees() {
-    const { data, error } = await supabase.rpc('list_active_employees');
-    if (error) return { ok: false, error: 'Não foi possível carregar as colaboradoras. Confira o banco de dados.', employees: [] };
-    return { ok: true, employees: data || [] };
+    if (!repApiUrl) {
+      return { ok: false, error: 'Servidor REP-P não configurado. A lista de colaboradores está indisponível.', employees: [] };
+    }
+    try {
+      const response = await fetch(`${repApiUrl}/api/rep-p/employees`, { cache: 'no-store' });
+      const result = await response.json();
+      if (!response.ok || !result?.ok) {
+        return { ok: false, error: result?.error || 'Não foi possível carregar a equipe.', employees: [] };
+      }
+      return { ok: true, employees: result.employees || [] };
+    } catch {
+      return { ok: false, error: 'Servidor REP-P indisponível. Não foi possível carregar a equipe.', employees: [] };
+    }
   },
   listStaff: remoteStaff,
-  async verifyPin(employeeId, pin) {
-    const { error } = await supabase.rpc('verify_employee_pin', { employee_uuid: employeeId, submitted_pin: pin });
-    if (error) return { ok: false, error: messageFrom(error, 'Senha inválida ou acesso indisponível.') };
+  async verifyPin() {
+    // A validação real do PIN ocorre no backend REP-P ao consultar as marcações.
+    if (!repApiUrl) return { ok: false, error: 'Servidor REP-P não configurado. A marcação está bloqueada.' };
     return { ok: true };
   },
   async todayPunches(employeeId, pin) {
-    const { data, error } = await supabase.rpc('list_employee_punches', {
-      employee_uuid: employeeId,
-      submitted_pin: pin,
-      p_day: saoPauloParts().dayKey,
-    });
-    if (error) return { ok: false, error: messageFrom(error, 'Não foi possível carregar as marcações de hoje.') };
-    return { ok: true, punches: data || [] };
+    // Quando o REP-P está configurado, valida primeiro no backend oficial.
+    // Assim, PIN inválido/ bloqueado é contabilizado pela RPC REP-P, que
+    // retorna JSON em vez de lançar exceção (e perder a atualização no rollback).
+    let repPunches = [];
+    if (repApiUrl) {
+      try {
+        const response = await fetch(`${repApiUrl}/api/rep-p/today`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ employeeId, pin, day: saoPauloParts().dayKey }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result?.ok) {
+          return { ok: false, error: result?.error || 'Não foi possível carregar as marcações REP-P.' };
+        }
+        repPunches = result.punches || [];
+      } catch {
+        return { ok: false, error: 'Servidor REP-P indisponível. Não foi possível consultar as marcações.' };
+      }
+    }
+
+    return {
+      ok: true,
+      punches: repPunches.sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at)),
+    };
   },
   async registerPunch(employeeId, pin, type, requestId) {
-    const { data, error } = await supabase.rpc('register_punch', {
-      employee_uuid: employeeId,
-      submitted_pin: pin,
-      requested_type: type,
-      client_request_id: requestId,
-    });
-    if (error) return { ok: false, error: messageFrom(error, 'Não foi possível registrar.') };
-    return { ok: true, punch: data };
+    if (repApiUrl) {
+      try {
+        const response = await fetch(`${repApiUrl}/api/rep-p/register`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ employeeId, pin, type, requestId }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result?.ok) {
+          return { ok: false, error: result?.error || 'Não foi possível registrar a marcação.' };
+        }
+        return result;
+      } catch {
+        return { ok: false, error: 'Servidor de registro indisponível. A marcação não foi registrada.' };
+      }
+    }
+
+    return { ok: false, error: 'Servidor REP-P não configurado. A marcação não foi registrada.' };
   },
   async punchesBetween(start, end) {
     const { data, error } = await supabase.from('punches').select('id,employee_id,punch_type,recorded_at,source,voided_at,void_reason').gte('recorded_at', start).lt('recorded_at', end).order('recorded_at');
     if (error) return { ok: false, error: messageFrom(error, 'Não foi possível carregar os registros.'), punches: [] };
-    return { ok: true, punches: data || [] };
+
+    if (!repApiUrl) return { ok: true, punches: data || [] };
+
+    const { data: repMarks, error: repError } = await supabase
+      .from('time_marks')
+      .select('id,employee_id,punch_type,recorded_at,source,nsr')
+      .gte('recorded_at', start)
+      .lt('recorded_at', end)
+      .order('recorded_at');
+    if (repError) {
+      return { ok: false, error: messageFrom(repError, 'Não foi possível carregar as marcações REP-P.'), punches: [] };
+    }
+
+    const combined = [
+      ...(data || []),
+      ...(repMarks || []).map((mark) => ({ ...mark, voided_at: null, void_reason: null })),
+    ].sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at));
+    return { ok: true, punches: combined };
   },
   async justificationsBetween(start, end) {
     const { data, error } = await supabase.from('justifications').select('id,employee_id,category,starts_at,ends_at,notes').lte('starts_at', end).gte('ends_at', start);
@@ -105,6 +161,7 @@ const remoteApi = {
       p_schedule: input.schedule_code,
       p_pin: input.pin || null,
       p_active: input.active !== false,
+      p_cpf: String(input.cpf || '').replace(/\D/g, ''),
     });
     if (error) return { ok: false, error: messageFrom(error, 'Não foi possível salvar a colaboradora.') };
     return { ok: true };
