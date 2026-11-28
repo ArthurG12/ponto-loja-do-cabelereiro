@@ -27,6 +27,7 @@ trap 'rm -rf "$TMP"' EXIT
 download_and_check() {
   local artifact="$1"
   local sidecar="$2"
+  local pinned_expected_sha256="${3:-}"
   local expected actual
   curl --proto '=https' --tlsv1.2 --fail --location --silent --show-error \
     "$BASE_URL/$artifact" --output "$TMP/$artifact"
@@ -36,6 +37,10 @@ download_and_check() {
   expected="$(grep -Eio '[a-f0-9]{64}' "$TMP/$sidecar" | head -n 1 || true)"
   if [[ ! "$expected" =~ ^[[:xdigit:]]{64}$ ]]; then
     echo "Could not parse SHA-256 sidecar for $artifact" >&2
+    return 1
+  fi
+  if [[ -n "$pinned_expected_sha256" && "${expected,,}" != "${pinned_expected_sha256,,}" ]]; then
+    echo "Published sidecar hash does not match the independently recorded ITI hash for $artifact" >&2
     return 1
   fi
   actual="$(sha256sum "$TMP/$artifact" | awk '{print $1}')"
@@ -50,7 +55,10 @@ download_and_check() {
 
 download_and_check "LPA_CAdES.der" "LPA_CAdES_der-sha256.txt"
 download_and_check "LPA_CAdES.p7s" "LPA_CAdES_p7s-sha256.txt"
-download_and_check "PA_AD_RB_v2_4.der" "PA_AD_RB_v2_4der-sha256.txt"
+# The ITI sidecar was checked on 2026-11-28. Pin its published value as well,
+# so a substituted sidecar cannot silently redefine the expected policy bytes.
+download_and_check "PA_AD_RB_v2_4.der" "PA_AD_RB_v2_4der-sha256.txt" \
+  "25f148b0828c0ba93695742469566fcc4d1618aa0c20cac56ae72b3419ecee6b"
 
 cat <<'NOTICE'
 Artifacts downloaded and checked against ITI-published SHA-256 sidecars.
