@@ -49,6 +49,12 @@ begin
     raise exception 'service_role não pode alocar NSR isoladamente; a função deve ser somente interna.';
   end if;
 
+  if not has_function_privilege('authenticated', 'public.admin_save_employee(uuid,text,text,text,boolean,text)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.admin_save_employee(uuid,text,text,text,boolean,text)', 'EXECUTE')
+     or has_function_privilege('service_role', 'public.admin_save_employee(uuid,text,text,text,boolean,text)', 'EXECUTE') then
+    raise exception 'Permissões da RPC admin_save_employee com CPF estão incorretas.';
+  end if;
+
   if public.rep_afd_v004_mark_hash(
     1,
     '2026-01-02T13:03:42.000Z'::timestamptz,
@@ -81,6 +87,12 @@ begin
 
   if establishment_uuid is null then
     raise exception 'Trigger não associou o funcionário ao estabelecimento.';
+  end if;
+
+  if public.admin_save_employee(
+    employee_uuid, 'Funcionário de teste', 'A', null, true, '52998224725'
+  ) <> employee_uuid then
+    raise exception 'RPC admin_save_employee compatível com CPF não retornou a colaboradora.';
   end if;
 
   if not exists (
