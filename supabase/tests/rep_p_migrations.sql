@@ -1,9 +1,9 @@
 -- Teste de integração das migrations REP-P em PostgreSQL limpo.
--- Executado pelo GitHub Actions após schema.sql e migrations 001–017.
+-- Executado pelo GitHub Actions após schema.sql e migrations 001–018.
 
 do $$
 declare
-  employee_uuid uuid;
+  employee_uuid uuid;\n  deleted_employee_uuid uuid;
   establishment_uuid uuid;
   result jsonb;
   first_mark jsonb;
@@ -165,6 +165,24 @@ begin
       and record_payload->>'responsible_cpf' = '52998224725'
   ) then
     raise exception 'Desativação de empregado não gerou evento AFD tipo 5.';
+  end if;
+
+  -- Exclusão física de empregado sem marcações também precisa gerar tipo 5.
+  insert into public.employees (full_name, schedule_code, active, pin_hash, cpf)
+  values ('Funcionário para exclusão', 'A', true, crypt('5678', gen_salt('bf')), '10000000184')
+  returning id into deleted_employee_uuid;
+
+  delete from public.employees where id = deleted_employee_uuid;
+
+  if not exists (
+    select 1 from public.rep_ledger
+    where establishment_id = establishment_uuid
+      and nsr = 11 and record_type = '5'
+      and record_payload->>'operation' = 'E'
+      and record_payload->>'cpf' = '10000000184'
+      and record_payload->>'responsible_cpf' = '52998224725'
+  ) then
+    raise exception 'Exclusão física de empregado não gerou AFD tipo 5.';
   end if;
 
   -- Tipo 2: o responsável deve ter CPF válido; sem ele a alteração inteira falha.
