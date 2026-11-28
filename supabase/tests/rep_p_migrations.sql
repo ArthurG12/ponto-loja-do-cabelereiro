@@ -1,5 +1,5 @@
 -- Teste de integração das migrations REP-P em PostgreSQL limpo.
--- Executado pelo GitHub Actions após schema.sql e migrations 001–019.
+-- Executado pelo GitHub Actions após schema.sql e migrations 001–022.
 
 do $$
 declare
@@ -14,6 +14,12 @@ declare
   ledger_count integer;
   event_result jsonb;
 begin
+  if has_table_privilege('service_role', 'public.rep_events', 'INSERT')
+     or has_table_privilege('service_role', 'public.rep_events', 'UPDATE')
+     or has_table_privilege('service_role', 'public.rep_events', 'DELETE') then
+    raise exception 'service_role não pode gravar diretamente em rep_events; use fluxos internos transacionais.';
+  end if;
+
   if has_table_privilege('service_role', 'public.rep_ledger', 'INSERT')
      or has_table_privilege('service_role', 'public.rep_ledger', 'UPDATE')
      or has_table_privilege('service_role', 'public.rep_ledger', 'DELETE') then
